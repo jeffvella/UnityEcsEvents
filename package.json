@@ -6,6 +6,6 @@
     "displayName": "ECS Events",
     "dependencies": {
     	"com.unity.collections": "0.5.2-preview.8",
-    	"com.unity.entities": "0.6.0-preview.24",
+    	"com.unity.entities": "0.6.0-preview.24"
     }
 }
