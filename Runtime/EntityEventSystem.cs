@@ -6,11 +6,6 @@ using Unity.Jobs.LowLevel.Unsafe;
 
 namespace Vella.Events
 {
-    public struct TestBufferElement : IBufferElementData
-    {
-        public int SomeData;
-    }
-
     public class EntityEventSystem : SystemBase
     {
         private UnsafeHashMap<int, EventBatch> _typeIndexToBatchMap;

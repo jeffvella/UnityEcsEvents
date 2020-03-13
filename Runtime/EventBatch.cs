@@ -100,61 +100,8 @@ namespace Vella.Events
             return batch;
         }
 
-        //public static EventBatch Create<TComponent,TBuffer>(EntityManager em, ComponentType entityComponent, Allocator allocator) 
-        //    where TComponent : struct, IComponentData
-        //    where TBuffer : struct, IBufferElementData
-        //{
-        //    var componentTypeInfo = TypeManager.GetTypeInfo<TComponent>();
-        //    var componentType = ComponentType.FromTypeIndex(componentTypeInfo.TypeIndex);
-
-        //    var bufferTypeInfo = TypeManager.GetTypeInfo<TComponent>();
-        //    var bufferType = ComponentType.FromTypeIndex(componentTypeInfo.TypeIndex);
-
-        //    var batch = new EventBatch
-        //    {
-        //        ComponentTypeIndex = componentTypeInfo.TypeIndex,
-        //        ComponentType = componentType,
-        //        ComponentTypeSize = UnsafeUtility.SizeOf<TComponent>(),
-
-        //        HasBufferQueue = true,
-        //        BufferTypeIndex = bufferTypeInfo.TypeIndex,
-        //        BufferType = bufferType,
-        //        BufferTypeSize = UnsafeUtility.SizeOf<TBuffer>(),
-
-        //        Allocator = allocator,
-        //        ComponentQueue = new EventQueue(UnsafeUtility.SizeOf<TComponent>(), Allocator.Persistent),
-        //        BufferQueue = new EventQueue(UnsafeUtility.SizeOf<TComponent>(), Allocator.Persistent),
-
-        //        Archetype = em.CreateArchetype(new[]
-        //        {
-        //            entityComponent,
-        //            componentType,
-        //            bufferType
-        //        })
-        //    };
-
-        //    return batch;
-        //}
-
         internal void Dispose()
         {
-            //if (IsBuffer)
-            //{
-            //    for (int i = -1; i < JobsUtility.MaxJobThreadCount; i++)
-            //    {
-            //        ref var buffer = ref ComponentQueue._bufferData.GetBuffer(i);
-            //        if (buffer.Size == 0 || ComponentTypeSize == 0)
-            //            continue;
-
-            //        var length = buffer.Size / ComponentTypeSize;
-            //        for (int j = 0; j < length; j++)
-            //        {
-            //            var header = ((BufferHeaderProxy*)buffer.Ptr)[j];
-            //            UnsafeUtility.Free(header.Pointer, Allocator.TempJob);
-            //        }
-            //    }
-            //}
-
             ComponentQueue.Dispose();
         }
 
