@@ -79,38 +79,6 @@ namespace Vella.Events
             return totalSize;
         }
 
-        /// <summary>
-        /// Combines the data from all internal buffers and writes it to a single destination.
-        /// </summary>
-        /// <param name="destinationPtr">a location to be written to</param>
-        /// <param name="maxSizeBytes">maximum amount of data (in bytes) to be written to <paramref name="destinationPtr"/></param>
-        /// <returns>the amount of data written in bytes</returns>
-        public int Copy(void* destinationPtr, int maxSizeBytes)
-        {
-            if (destinationPtr == null)
-                throw new NullReferenceException();
-
-            int sum = 0;
-            byte* pos = (byte*)destinationPtr;
-            for (int i = -1; i < JobsUtility.MaxJobThreadCount; i++)
-            {
-                ref var buffer = ref GetBuffer(i);
-                if (buffer.Size > 0)
-                {
-                    var amountToWrite = math.min(maxSizeBytes, buffer.Size);
-                    sum += amountToWrite;
-
-                    if (sum > maxSizeBytes)
-                        throw new Exception("Attempt to write data beyond the target allocation");
-
-                    UnsafeUtility.MemCpy(pos, buffer.Ptr, amountToWrite);
-                    pos += amountToWrite;
-                }
-            }
-
-            return sum;
-        }
-
         public Reader AsReader()
         {
             Reader reader;
@@ -121,6 +89,10 @@ namespace Vella.Events
             return reader;
         }
 
+        /// <summary>
+        /// A reader instance lets you keep track of the current read position and therefore easily
+        /// copy data to different destinations (e.g. chunks); each time continuing from where it left off.
+        /// </summary>
         public struct Reader
         {
             public UnsafeMultiAppendBuffer Data;
@@ -139,35 +111,41 @@ namespace Vella.Events
                 if (destinationPtr == null)
                     throw new NullReferenceException();
 
-                // destinationPos
-                byte* destPos = (byte*)destinationPtr;
-                int sum = 0;
+                byte* pos = (byte*)destinationPtr;
+                int bytesWritten = 0;
 
                 for (; Index < JobsUtility.MaxJobThreadCount; Index++)
                 {
                     ref var buffer = ref Data.GetBuffer(Index);
                     if (buffer.Size > 0)
                     {
+
                         var amountToWrite = math.min(maxSizeBytes, buffer.Size);
 
-                        sum += amountToWrite;
-                        if (sum > maxSizeBytes)
+                        bytesWritten += amountToWrite;
+                        if (bytesWritten > maxSizeBytes)
                             throw new Exception("Attempt to write data beyond the target allocation");
 
-                        UnsafeUtility.MemCpy(destPos, buffer.Ptr + WrittenFromIndex, amountToWrite);
+                        UnsafeUtility.MemCpy(pos, buffer.Ptr + WrittenFromIndex, amountToWrite);
 
-                        destPos += amountToWrite;
-
-                        // Allow continutation, but clear it when each index is finished.
-                        WrittenFromIndex += amountToWrite;
-                        if (WrittenFromIndex >= buffer.Size)
-                            WrittenFromIndex = 0;
+                        pos += amountToWrite;
 
                         WrittenTotal += amountToWrite;
+                        WrittenFromIndex += amountToWrite;
+
+                        if (WrittenFromIndex >= buffer.Size)
+                        {
+                            WrittenFromIndex = 0;
+                        } 
+                        
+                        if (maxSizeBytes <= buffer.Size)
+                        {
+                            return bytesWritten;
+                        }
                     }
                 }
 
-                return sum;
+                return bytesWritten;
             }
         }
 

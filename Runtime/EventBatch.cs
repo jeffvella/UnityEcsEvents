@@ -51,7 +51,8 @@ namespace Vella.Events
                 {
                     entityComponent,
                     componentType,
-                    ComponentType.ReadWrite<BufferLink>()
+                    ComponentType.ReadWrite<BufferLink>(),
+                    ComponentType.ReadWrite<EventDebugInfo>()
                 })
             };
 
@@ -91,7 +92,8 @@ namespace Vella.Events
                     entityComponent,
                     componentType,
                     bufferType,
-                    ComponentType.ReadWrite<BufferLink>()
+                    ComponentType.ReadWrite<BufferLink>(),
+                    ComponentType.ReadWrite<EventDebugInfo>()
                 })
             };
 
