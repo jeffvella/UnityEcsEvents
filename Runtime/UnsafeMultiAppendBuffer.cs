@@ -3,6 +3,7 @@ using Unity.Entities;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs.LowLevel.Unsafe;
+using Unity.Mathematics;
 
 namespace Vella.Events
 {
@@ -13,11 +14,11 @@ namespace Vella.Events
     {
         public const int DefaultThreadIndex = -1;
         private UnsafeAppendBuffer* _data;
-        private Allocator _allocator;
+        public readonly Allocator Allocator;
 
         public UnsafeMultiAppendBuffer(Allocator allocator)
         {
-            _allocator = allocator;
+            Allocator = allocator;
 
             var bufferSize = UnsafeUtility.SizeOf<UnsafeAppendBuffer>();
             var bufferCount = JobsUtility.MaxJobThreadCount + 1;
@@ -45,7 +46,7 @@ namespace Vella.Events
         /// <param name="item">the item to be added</param>
         public void Enqueue<T>(int threadIndex, T item) where T : struct, IComponentData
         {
-            ref var buffer = ref GetBuffer(threadIndex);
+            var buffer = GetBuffer(threadIndex);
             buffer.Add(item);
         }
 
@@ -69,8 +70,6 @@ namespace Vella.Events
         /// </summary>
         public int Size()
         {
-            //return GetBuffer(DefaultThreadIndex).Size;
-
             var totalSize = 0;
             for (int i = -1; i < JobsUtility.MaxJobThreadCount; i++)
             {
@@ -85,7 +84,8 @@ namespace Vella.Events
         /// </summary>
         /// <param name="destinationPtr">a location to be written to</param>
         /// <param name="maxSizeBytes">maximum amount of data (in bytes) to be written to <paramref name="destinationPtr"/></param>
-        public void Copy(void* destinationPtr, int maxSizeBytes)
+        /// <returns>the amount of data written in bytes</returns>
+        public int Copy(void* destinationPtr, int maxSizeBytes)
         {
             if (destinationPtr == null)
                 throw new NullReferenceException();
@@ -97,13 +97,77 @@ namespace Vella.Events
                 ref var buffer = ref GetBuffer(i);
                 if (buffer.Size > 0)
                 {
-                    sum += buffer.Size;
+                    var amountToWrite = math.min(maxSizeBytes, buffer.Size);
+                    sum += amountToWrite;
+
                     if (sum > maxSizeBytes)
                         throw new Exception("Attempt to write data beyond the target allocation");
 
-                    UnsafeUtility.MemCpy(pos, buffer.Ptr, buffer.Size);
-                    pos += buffer.Size;
+                    UnsafeUtility.MemCpy(pos, buffer.Ptr, amountToWrite);
+                    pos += amountToWrite;
                 }
+            }
+
+            return sum;
+        }
+
+        public Reader AsReader()
+        {
+            Reader reader;
+            reader.Data = this;
+            reader.WrittenTotal = 0;
+            reader.WrittenFromIndex = 0;
+            reader.Index = DefaultThreadIndex;
+            return reader;
+        }
+
+        public struct Reader
+        {
+            public UnsafeMultiAppendBuffer Data;
+            public int WrittenTotal;
+            public int WrittenFromIndex;
+            public int Index;
+
+            /// <summary>
+            /// Copies from the pool of data remaining to be read, to the provided destination.
+            /// </summary>
+            /// <param name="destinationPtr">where to write the data</param>
+            /// <param name="maxSizeBytes">the maximum amount of data that can be written to <paramref name="destinationPtr"/> (in bytes)</param>
+            /// <returns></returns>
+            public int CopyTo(void* destinationPtr, int maxSizeBytes)
+            {
+                if (destinationPtr == null)
+                    throw new NullReferenceException();
+
+                // destinationPos
+                byte* destPos = (byte*)destinationPtr;
+                int sum = 0;
+
+                for (; Index < JobsUtility.MaxJobThreadCount; Index++)
+                {
+                    ref var buffer = ref Data.GetBuffer(Index);
+                    if (buffer.Size > 0)
+                    {
+                        var amountToWrite = math.min(maxSizeBytes, buffer.Size);
+
+                        sum += amountToWrite;
+                        if (sum > maxSizeBytes)
+                            throw new Exception("Attempt to write data beyond the target allocation");
+
+                        UnsafeUtility.MemCpy(destPos, buffer.Ptr + WrittenFromIndex, amountToWrite);
+
+                        destPos += amountToWrite;
+
+                        // Allow continutation, but clear it when each index is finished.
+                        WrittenFromIndex += amountToWrite;
+                        if (WrittenFromIndex >= buffer.Size)
+                            WrittenFromIndex = 0;
+
+                        WrittenTotal += amountToWrite;
+                    }
+                }
+
+                return sum;
             }
         }
 
@@ -113,7 +177,7 @@ namespace Vella.Events
             {
                 GetBuffer(i).Dispose();
             }
-            UnsafeUtility.Free(_data, _allocator);
+            UnsafeUtility.Free(_data, Allocator);
         }
 
         public void Clear()
