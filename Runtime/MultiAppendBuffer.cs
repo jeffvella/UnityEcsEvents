@@ -10,13 +10,13 @@ namespace Vella.Events
     /// <summary>
     /// A collection of <see cref="UnsafeAppendBuffer"/> intended to allow one buffer per thread.
     /// </summary>
-    public unsafe struct UnsafeMultiAppendBuffer
+    public unsafe struct MultiAppendBuffer
     {
         public const int DefaultThreadIndex = -1;
         private UnsafeAppendBuffer* _data;
         public readonly Allocator Allocator;
 
-        public UnsafeMultiAppendBuffer(Allocator allocator)
+        public MultiAppendBuffer(Allocator allocator)
         {
             Allocator = allocator;
 
@@ -95,7 +95,7 @@ namespace Vella.Events
         /// </summary>
         public struct Reader
         {
-            public UnsafeMultiAppendBuffer Data;
+            public MultiAppendBuffer Data;
             public int WrittenTotal;
             public int WrittenFromIndex;
             public int Index;

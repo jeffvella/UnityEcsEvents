@@ -13,6 +13,7 @@ namespace Vella.Events
         private EntityQuery _allEventsQuery;
         private NativeList<EventBatch> _batches;
         private NativeList<EventBatch> _buffer;
+
         protected override void OnCreate()
         {
             var typeCount = TypeManager.GetTypeCount();
@@ -89,7 +90,7 @@ namespace Vella.Events
 
                     var componentType = entityEventComponentType;
                     UnsafeUtility.CopyStructureToPtr(ref batch.ComponentTypeIndex, UnsafeUtility.AddressOf(ref componentType));
-                    UnsafeMultiAppendBuffer.Reader components = batch.ComponentQueue.GetComponentReader();
+                    MultiAppendBuffer.Reader components = batch.ComponentQueue.GetComponentReader();
 
                     for (int j = 0; j < chunks.Length; j++)
                     {
@@ -113,7 +114,7 @@ namespace Vella.Events
                     {
                         var linkType = entityEventComponentType;
                         UnsafeUtility.CopyStructureToPtr(ref batch.BufferLinkTypeIndex, UnsafeUtility.AddressOf(ref linkType));
-                        UnsafeMultiAppendBuffer.Reader links = batch.ComponentQueue.GetLinksReader();
+                        MultiAppendBuffer.Reader links = batch.ComponentQueue.GetLinksReader();
 
                         var bufferType = entityEventComponentType;
                         UnsafeUtility.CopyStructureToPtr(ref batch.BufferTypeIndex, UnsafeUtility.AddressOf(ref bufferType));
@@ -142,7 +143,7 @@ namespace Vella.Events
 
             }).Run();
         }
-
+        
 
         /// <summary>
         /// Add an event to the default EventQueue.

@@ -24,9 +24,9 @@ namespace Vella.Events
         [NativeSetThreadIndex]
         private int _threadIndex;
 
-        private UnsafeMultiAppendBuffer _data;
-        private UnsafeMultiAppendBuffer _bufferMap;
-        private UnsafeMultiAppendBuffer _bufferData;
+        private MultiAppendBuffer _data;
+        private MultiAppendBuffer _bufferMap;
+        private MultiAppendBuffer _bufferData;
 
         public void Enqueue(T item) => _data.GetBuffer(_threadIndex).Add(item);
 
@@ -72,9 +72,9 @@ namespace Vella.Events
         [NativeSetThreadIndex]
         private int _threadIndex;
 
-        private UnsafeMultiAppendBuffer _data;
-        private UnsafeMultiAppendBuffer _bufferMap;
-        private UnsafeMultiAppendBuffer _bufferData;
+        private MultiAppendBuffer _data;
+        private MultiAppendBuffer _bufferMap;
+        private MultiAppendBuffer _bufferData;
 
         public void Enqueue(TComponent item, void* items, int length)
         {
@@ -111,9 +111,9 @@ namespace Vella.Events
         [NativeSetThreadIndex]
         private int _threadIndex;
 
-        private UnsafeMultiAppendBuffer _componentData;
-        public UnsafeMultiAppendBuffer _bufferLinks;
-        public UnsafeMultiAppendBuffer _bufferData;
+        private MultiAppendBuffer _componentData;
+        public MultiAppendBuffer _bufferLinks;
+        public MultiAppendBuffer _bufferData;
 
         private int _componentSize;
         private int _cachedCount;
@@ -122,10 +122,10 @@ namespace Vella.Events
 
         public EventQueue(int componentSize, Allocator allocator) : this()
         {
-            _componentData = new UnsafeMultiAppendBuffer(allocator);
-            _bufferLinks = new UnsafeMultiAppendBuffer(allocator);
-            _bufferData = new UnsafeMultiAppendBuffer(allocator);
-            _threadIndex = UnsafeMultiAppendBuffer.DefaultThreadIndex;
+            _componentData = new MultiAppendBuffer(allocator);
+            _bufferLinks = new MultiAppendBuffer(allocator);
+            _bufferData = new MultiAppendBuffer(allocator);
+            _threadIndex = MultiAppendBuffer.DefaultThreadIndex;
             _componentSize = componentSize;
         }
 
@@ -133,11 +133,11 @@ namespace Vella.Events
 
         public int ComponentCount() => _cachedCount = _componentData.Size() / _componentSize;
 
-        public UnsafeMultiAppendBuffer.Reader GetComponentReader() => _componentData.AsReader();
+        public MultiAppendBuffer.Reader GetComponentReader() => _componentData.AsReader();
 
-        public UnsafeMultiAppendBuffer.Reader GetLinksReader() => _bufferLinks.AsReader();
+        public MultiAppendBuffer.Reader GetLinksReader() => _bufferLinks.AsReader();
 
-        public UnsafeMultiAppendBuffer.Reader GetBuffersReader() => _bufferLinks.AsReader();
+        public MultiAppendBuffer.Reader GetBuffersReader() => _bufferLinks.AsReader();
 
         public T Cast<T>() where T : struct => UnsafeUtilityEx.AsRef<T>(UnsafeUtility.AddressOf(ref this));
 
