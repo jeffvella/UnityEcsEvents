@@ -33,6 +33,16 @@ namespace Vella.Tests.Data
         public int GetValue() => value;
     }
 
+    public struct EcsTestDataZeroSized : IComponentData
+    {
+
+    }
+
+    public struct EcsTestElementZeroSized : IBufferElementData
+    {
+
+    }
+
     public struct EcsTestData2 : IComponentData, IGetValue
     {
         public int value0;

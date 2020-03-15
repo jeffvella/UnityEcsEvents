@@ -4,8 +4,9 @@ using System.Collections.Generic;
 using Unity.Collections;
 using Vella.Tests.Data;
 
-public unsafe partial class EventQueueTests
+namespace Vella.Tests.Helpers
 {
+
     public unsafe struct NativeArrayBuilder<T> : IDisposable, IEnumerable<T> where T : unmanaged
     {
         public NativeList<T> List;
@@ -21,7 +22,7 @@ public unsafe partial class EventQueueTests
 
         public void Add(T item)
         {
-            if(!List.IsCreated)
+            if (!List.IsCreated)
                 List = new NativeList<T>(Allocator.Temp);
             List.Add(item);
         }
@@ -37,4 +38,3 @@ public unsafe partial class EventQueueTests
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 }
-

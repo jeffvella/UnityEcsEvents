@@ -4,6 +4,7 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs.LowLevel.Unsafe;
 using Unity.Mathematics;
+using System.Runtime.CompilerServices;
 
 namespace Vella.Events
 {
@@ -13,8 +14,16 @@ namespace Vella.Events
     public unsafe struct MultiAppendBuffer
     {
         public const int DefaultThreadIndex = -1;
+        public const int MaxThreadIndex = JobsUtility.MaxJobThreadCount-1;
+        public const int MinThreadIndex = DefaultThreadIndex;
+
+        [NativeDisableUnsafePtrRestriction]
         private UnsafeAppendBuffer* _data;
+
         public readonly Allocator Allocator;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool IsInvalidThreadIndex(int index) => index < MinThreadIndex || index > MaxThreadIndex;
 
         public MultiAppendBuffer(Allocator allocator)
         {

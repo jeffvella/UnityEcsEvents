@@ -14,14 +14,14 @@ namespace Vella.Events
         public static unsafe void CopyChunksTo(this EntityArchetype archetype, NativeArray<ArchetypeChunk> destination)
         {
             var archetypeProxy = *(EntityArchetypeProxy*)&archetype;
-            var chunkData = archetypeProxy.ArchetypePtr->Chunks;
+            var chunkData = archetypeProxy.Archetype->Chunks;
             var destinationPtr = (ArchetypeChunkProxy*)destination.GetUnsafePtr();
             
             for (int i = 0; i < chunkData.Count; i++)
             {
                 ArchetypeChunkProxy chunk;
-                chunk.ChunkPtr = chunkData.p[i];
-                chunk.EntityComponentStorePtr = archetypeProxy.EntityComponentStorePtr;
+                chunk.m_Chunk = chunkData.p[i];
+                chunk.entityComponentStore = archetypeProxy._DebugComponentStore;
                 destinationPtr[i] = chunk;
             }
         }
@@ -30,19 +30,19 @@ namespace Vella.Events
         public unsafe struct ArchetypeChunkProxy
         {
             [FieldOffset(0)]
-            public void* ChunkPtr;
+            public void* m_Chunk;
 
             [FieldOffset(8)]
-            public void* EntityComponentStorePtr;
+            public void* entityComponentStore;
         }
 
         public unsafe struct EntityArchetypeProxy
         {
             [NativeDisableUnsafePtrRestriction]
-            public ArchetypeProxy* ArchetypePtr;
+            public ArchetypeProxy* Archetype;
 
             [NativeDisableUnsafePtrRestriction]
-            public void* EntityComponentStorePtr;
+            public void* _DebugComponentStore;
         }
 
         public unsafe struct ArchetypeProxy

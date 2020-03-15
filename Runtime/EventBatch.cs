@@ -9,7 +9,7 @@ namespace Vella.Events
     /// <summary>
     /// Contains all type and scheduling information for a specific event.
     /// </summary>
-    internal unsafe struct EventBatch
+    public unsafe struct EventBatch
     {
         public EventQueue ComponentQueue;
         public bool HasBuffer;

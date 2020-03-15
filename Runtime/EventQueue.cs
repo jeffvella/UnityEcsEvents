@@ -2,6 +2,7 @@
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Collections;
 using System.Runtime.CompilerServices;
+using System;
 
 namespace Vella.Events
 {
@@ -72,7 +73,6 @@ namespace Vella.Events
                 Length = length,
             });
 
-            //_bufferData.GetBuffer(_threadIndex).AddArray<TBufferData>(items, length);
             _bufferData.GetBuffer(_threadIndex).Add(items, UnsafeUtility.SizeOf<TBufferData>() * length);
         }
 
@@ -81,8 +81,12 @@ namespace Vella.Events
             => Enqueue(component, array.GetUnsafePtr(), array.Length);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Enqueue(TComponent item, BufferAccessor<TBufferData> buffer)
-            => Enqueue(item, *(void**)UnsafeUtility.AddressOf(ref buffer), buffer.Length);
+        public void Enqueue(TComponent item, DynamicBuffer<TBufferData> buffer)
+        {
+            var header = *(BufferHeaderProxy**)UnsafeUtility.AddressOf(ref buffer);
+            var ptr = BufferHeaderProxy.GetElementPointer(header);
+            Enqueue(item, ptr, buffer.Length);
+        }
     }
 
     /// <summary>
@@ -114,6 +118,18 @@ namespace Vella.Events
             _bufferElementSize = bufferElementSize;
         }
 
+
+        public static EventQueue<T> Create<T>(Allocator allocator) where T : struct, IComponentData
+            => new EventQueue(UnsafeUtility.SizeOf<T>(), Allocator.Temp).Cast<EventQueue<T>>();
+
+        public static EventQueue<TComponent, TBufferData> Create<TComponent, TBufferData>(Allocator allocator)
+            where TComponent : struct, IComponentData
+            where TBufferData : unmanaged, IBufferElementData
+        {
+            return new EventQueue(UnsafeUtility.SizeOf<TComponent>(), UnsafeUtility.SizeOf<TComponent>(), allocator)
+                .Cast<EventQueue<TComponent, TBufferData>>();
+        }
+
         public int CachedCount => _cachedCount;
 
         public int ComponentCount() => _componentSize != 0 ? _cachedCount = _componentData.Size() / _componentSize : 0;
@@ -127,6 +143,30 @@ namespace Vella.Events
         public MultiAppendBuffer.Reader GetLinksReader() => _bufferLinks.AsReader();
 
         public MultiAppendBuffer.Reader GetBuffersReader() => _bufferLinks.AsReader();
+
+        public ref UnsafeAppendBuffer GetComponentsForThread(int threadIndex = MultiAppendBuffer.DefaultThreadIndex)
+        {
+            if (_componentData.IsInvalidThreadIndex(threadIndex))
+                throw new ArgumentException(nameof(threadIndex));
+
+            return ref _componentData.GetBuffer(threadIndex);
+        }
+
+        public ref UnsafeAppendBuffer GetLinksForThread(int threadIndex = MultiAppendBuffer.DefaultThreadIndex)
+        {
+            if (_componentData.IsInvalidThreadIndex(threadIndex))
+                throw new ArgumentException(nameof(threadIndex));
+
+            return ref _bufferLinks.GetBuffer(threadIndex);
+        }
+
+        public ref UnsafeAppendBuffer GetBuffersForThread(int threadIndex = MultiAppendBuffer.DefaultThreadIndex)
+        {
+            if (_componentData.IsInvalidThreadIndex(threadIndex))
+                throw new ArgumentException(nameof(threadIndex));
+
+            return ref _bufferData.GetBuffer(threadIndex);
+        }
 
         public T Cast<T>() where T : struct => UnsafeUtilityEx.AsRef<T>(UnsafeUtility.AddressOf(ref this));
 
