@@ -15,12 +15,8 @@ namespace Vella.Events
         {
             var archetypeProxy = *(EntityArchetypeProxy*)&archetype;
             var chunkData = archetypeProxy.ArchetypePtr->Chunks;
-
-            Debug.Assert(destination.Length >= chunkData.Count);
-            Debug.Assert(sizeof(EntityArchetype) == sizeof(EntityArchetypeProxy));
-            Debug.Assert(sizeof(ArchetypeChunk) == sizeof(ArchetypeChunkProxy));
-
             var destinationPtr = (ArchetypeChunkProxy*)destination.GetUnsafePtr();
+            
             for (int i = 0; i < chunkData.Count; i++)
             {
                 ArchetypeChunkProxy chunk;

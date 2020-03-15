@@ -5,7 +5,7 @@ using NUnit.Framework.Interfaces;
 using NUnit.Framework.Internal;
 using NUnit.Framework.Internal.Builders;
 
-namespace Vella.Events.Tests
+namespace Vella.Tests.Attributes
 {
     [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
     public class TestCaseGenericAttribute : TestCaseAttribute, ITestBuilder

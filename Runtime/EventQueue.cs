@@ -14,41 +14,23 @@ namespace Vella.Events
     /// <para>
     /// This is intended to be passed into jobs, where it will be injected with thread index 
     /// and utilize the corresponding queue dedicated to that thread.
-    /// </para>
+    /// </para>Helpers
+    /// 
     /// EventQueues do not need to be disposed manually by the systems creating them. 
     /// They are owned and disposed automatically by <see cref="EntityEventSystem"/>
     /// </summary>
     /// <typeparam name="T">type of event</typeparam>
-    public unsafe struct EventQueue<T> where T : struct
+    public unsafe struct EventQueue<T> where T : struct, IComponentData
     {
         [NativeSetThreadIndex]
-        private int _threadIndex;
+        internal int _threadIndex;
 
-        private MultiAppendBuffer _data;
-        private MultiAppendBuffer _bufferMap;
-        private MultiAppendBuffer _bufferData;
+        internal MultiAppendBuffer _data;
 
         public void Enqueue(T item) => _data.GetBuffer(_threadIndex).Add(item);
 
-        public void Enqueue<T2>(T item, T2* items, int length) where T2 : unmanaged
-        {
-            _data.GetBuffer(_threadIndex).Add(item);
-
-            var buffer = _bufferData.GetBuffer(_threadIndex);
-            var offset = buffer.Size;
-
-            _bufferMap.GetBuffer(_threadIndex).Add(new BufferLink
-            {
-                ThreadIndex = _threadIndex,
-                Offset = offset,
-                Length = length,
-            });
-
-            _bufferData.GetBuffer(_threadIndex).AddArray<T2>(items, length);
-        }
-
-        public void Enqueue(NativeArray<T> items, int length)
-            => _data.GetBuffer(_threadIndex).AddArray<T>(items.GetUnsafePtr(), length);
+        public void Enqueue(NativeArray<T> items)
+            => _data.GetBuffer(_threadIndex).Add(items.GetUnsafePtr(), UnsafeUtility.SizeOf<T>() * items.Length);
     }
 
     /// <summary>
@@ -90,7 +72,8 @@ namespace Vella.Events
                 Length = length,
             });
 
-            _bufferData.GetBuffer(_threadIndex).AddArray<TBufferData>(items, length);
+            //_bufferData.GetBuffer(_threadIndex).AddArray<TBufferData>(items, length);
+            _bufferData.GetBuffer(_threadIndex).Add(items, UnsafeUtility.SizeOf<TBufferData>() * length);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -106,7 +89,7 @@ namespace Vella.Events
     /// Wraps management of a queue for storing up components from multiple sources (c# events/systems/jobs/threads).
     /// This untyped version is a union with <see cref="EventQueue{T}"/>
     /// </summary>
-    internal unsafe struct EventQueue
+    public unsafe struct EventQueue
     {
         [NativeSetThreadIndex]
         private int _threadIndex;
@@ -116,22 +99,28 @@ namespace Vella.Events
         public MultiAppendBuffer _bufferData;
 
         private int _componentSize;
+        private int _bufferElementSize;
         private int _cachedCount;
 
-        public bool HasBuffer;
+        public EventQueue(int componentSize, Allocator allocator) : this(componentSize, 0, allocator) { }
 
-        public EventQueue(int componentSize, Allocator allocator) : this()
+        public EventQueue(int componentSize, int bufferElementSize, Allocator allocator) : this()
         {
             _componentData = new MultiAppendBuffer(allocator);
             _bufferLinks = new MultiAppendBuffer(allocator);
             _bufferData = new MultiAppendBuffer(allocator);
             _threadIndex = MultiAppendBuffer.DefaultThreadIndex;
             _componentSize = componentSize;
+            _bufferElementSize = bufferElementSize;
         }
 
         public int CachedCount => _cachedCount;
 
-        public int ComponentCount() => _cachedCount = _componentData.Size() / _componentSize;
+        public int ComponentCount() => _componentSize != 0 ? _cachedCount = _componentData.Size() / _componentSize : 0;
+
+        public int LinksCount() => _cachedCount = _bufferLinks.Size() / UnsafeUtility.SizeOf<BufferLink>();
+
+        public int BufferElementCount() => _bufferElementSize != 0 ? _bufferData.Size() / _bufferElementSize : 0;
 
         public MultiAppendBuffer.Reader GetComponentReader() => _componentData.AsReader();
 

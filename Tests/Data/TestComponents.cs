@@ -1,20 +1,21 @@
 using System;
 using System.Collections.Generic;
 using Unity.Entities;
-using Vella.Events.Tests;
+using Vella.Tests.Data;
 
 [assembly: RegisterGenericComponentType(typeof(EcsTestGeneric<int>))]
 [assembly: RegisterGenericComponentType(typeof(EcsTestGeneric<float>))]
 [assembly: RegisterGenericComponentType(typeof(EcsTestGenericTag<int>))]
 [assembly: RegisterGenericComponentType(typeof(EcsTestGenericTag<float>))]
 
-namespace Vella.Events.Tests
+namespace Vella.Tests.Data
 {
     // In case we need a generic way to access the first int of the EcsTestData* structures
     interface IGetValue
     {
         int GetValue();
     }
+
     public struct EcsTestData : IComponentData, IGetValue
     {
         public int value;

@@ -84,7 +84,7 @@ namespace Vella.Events
                 BufferTypeInfo = bufferTypeInfo,
                 BufferTypeSize = UnsafeUtility.SizeOf<T2>(),
 
-                ComponentQueue = new EventQueue(UnsafeUtility.SizeOf<T1>(), allocator),
+                ComponentQueue = new EventQueue(UnsafeUtility.SizeOf<T1>(), UnsafeUtility.SizeOf<T2>(), allocator),
                 BufferLinkTypeIndex = TypeManager.GetTypeIndex<BufferLink>(),
 
                 Archetype = em.CreateArchetype(new[]

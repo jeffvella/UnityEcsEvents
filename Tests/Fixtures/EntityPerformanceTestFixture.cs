@@ -1,6 +1,7 @@
 using NUnit.Framework;
+using Unity.Entities;
 
-namespace Unity.Entities.PerformanceTests
+namespace Vella.Tests.Fixtures
 {
     public class EntityPerformanceTestFixture
     {

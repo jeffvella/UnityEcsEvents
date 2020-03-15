@@ -6,7 +6,7 @@ namespace Vella.Events
     /// This component stores extra information about how to locate the buffer associated with the main event component. 
     /// The buffers are variable length and stored sequentially by thread.
     /// </summary>
-    internal struct BufferLink : IComponentData
+    public struct BufferLink : IComponentData
     {
         public int ThreadIndex;
         public int Offset;

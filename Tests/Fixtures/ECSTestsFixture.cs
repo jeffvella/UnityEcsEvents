@@ -6,8 +6,9 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using UnityEngine.Profiling;
+using Vella.Tests.Data;
 
-namespace Vella.Events.Tests
+namespace Vella.Tests.Fixtures
 {
 #if NET_DOTS
     public class EmptySystem : ComponentSystem
@@ -101,6 +102,16 @@ namespace Vella.Events.Tests
             }
         }
 
+        public unsafe void AssertBytesAreEqual<T>(NativeArray<T> arr1, NativeArray<T> arr2) where T : struct
+        {
+            var ptr1 = arr1.GetUnsafePtr();
+            var ptr2 = arr2.GetUnsafePtr();
+            var size = arr1.Length * UnsafeUtility.SizeOf<T>();
+
+            Assert.AreEqual(arr1.Length, arr2.Length);
+            Assert.AreEqual(0, UnsafeUtility.MemCmp(ptr1, ptr2, size));
+        }
+     
         public void AssertDoesNotExist(Entity entity)
         {
             Assert.IsFalse(m_Manager.HasComponent<EcsTestData>(entity));

@@ -1,7 +1,7 @@
 using System;
 using NUnit.Framework;
 
-namespace Vella.Events.Tests
+namespace Vella.Tests.Attributes
 {
 #if UNITY_DOTSPLAYER
     public class StandaloneFixmeAttribute : IgnoreAttribute

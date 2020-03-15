@@ -1,8 +1,9 @@
 using System;
 using NUnit.Framework;
 using Unity.Collections;
+using Vella.Tests.Fixtures;
 
-namespace Vella.Events.Tests
+namespace EventBatch
 {
     class EventBatchTests : ECSTestsFixture
     {

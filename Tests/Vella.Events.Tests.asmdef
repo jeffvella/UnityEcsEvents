@@ -10,19 +10,24 @@
         "Unity.Collections",
         "Unity.Entities.Properties",
         "Unity.Entities.Properties.Tests",
-        "Unity.Entities.Tests"
-    ],
-    "optionalUnityReferences": [
-        "TestAssemblies"
+        "Unity.Entities.Tests",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner",
+        "Vella.Events"
     ],
     "includePlatforms": [
         "Editor"
     ],
     "excludePlatforms": [],
     "allowUnsafeCode": true,
-    "overrideReferences": false,
-    "precompiledReferences": [],
-    "autoReferenced": true,
-    "defineConstraints": [],
-    "versionDefines": []
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
 }
