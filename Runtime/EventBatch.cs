@@ -31,7 +31,11 @@ namespace Vella.Events
 
         public static EventBatch Create<T>(EntityManager em, ComponentType entityComponent, Allocator allocator) where T : struct, IComponentData
         {
-            var componentTypeInfo = TypeManager.GetTypeInfo<T>();
+            return Create(em, entityComponent, TypeManager.GetTypeInfo<T>(), allocator);
+        }
+
+        public static EventBatch Create(EntityManager em, ComponentType entityComponent, TypeManager.TypeInfo componentTypeInfo, Allocator allocator)
+        {
             var componentType = ComponentType.FromTypeIndex(componentTypeInfo.TypeIndex);
 
             var batch = new EventBatch
@@ -42,9 +46,10 @@ namespace Vella.Events
                 ComponentType = componentType,
                 ComponentTypeInfo = componentTypeInfo,
                 ComponentTypeIndex = componentTypeInfo.TypeIndex,
-                ComponentTypeSize = UnsafeUtility.SizeOf<T>(),
+                ComponentTypeSize = componentTypeInfo.SizeInChunk,
 
-                ComponentQueue = new EventQueue(UnsafeUtility.SizeOf<T>(), allocator),
+                ComponentQueue = new EventQueue(componentTypeInfo.SizeInChunk, allocator),
+
                 BufferLinkTypeIndex = TypeManager.GetTypeIndex<BufferLink>(),
 
                 Archetype = em.CreateArchetype(new[]
@@ -52,10 +57,9 @@ namespace Vella.Events
                     entityComponent,
                     componentType,
                     ComponentType.ReadWrite<BufferLink>(),
-                    ComponentType.ReadWrite<EventDebugInfo>()
+                    //ComponentType.ReadWrite<EventDebugInfo>()
                 })
             };
-
             return batch;
         }
 
@@ -93,7 +97,7 @@ namespace Vella.Events
                     componentType,
                     bufferType,
                     ComponentType.ReadWrite<BufferLink>(),
-                    ComponentType.ReadWrite<EventDebugInfo>()
+                    //ComponentType.ReadWrite<EventDebugInfo>()
                 })
             };
 

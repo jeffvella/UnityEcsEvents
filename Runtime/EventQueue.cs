@@ -102,6 +102,11 @@ namespace Vella.Events
         public MultiAppendBuffer _bufferLinks;
         public MultiAppendBuffer _bufferData;
 
+        public struct EventQueueHeader
+        {
+
+        }
+
         private int _componentSize;
         private int _bufferElementSize;
         private int _cachedCount;
@@ -118,6 +123,11 @@ namespace Vella.Events
             _bufferElementSize = bufferElementSize;
         }
 
+        public void SetType(int componentSize, int bufferElementSize)
+        {
+            _componentSize = componentSize;
+            _bufferElementSize = bufferElementSize;
+        }
 
         public static EventQueue<T> Create<T>(Allocator allocator) where T : struct, IComponentData
             => new EventQueue(UnsafeUtility.SizeOf<T>(), Allocator.Temp).Cast<EventQueue<T>>();
@@ -184,7 +194,16 @@ namespace Vella.Events
             _bufferData.Dispose();
         }
 
+        public void EnqueueDefault()
+        {
+            var item = stackalloc byte[_componentSize];
+            _componentData.GetBuffer(_threadIndex).Add(item, _componentSize);
+        }
 
+        public void Enqueue(byte* ptr)
+        {
+            _componentData.GetBuffer(_threadIndex).Add(ptr, _componentSize);
+        }
     }
 
 }
