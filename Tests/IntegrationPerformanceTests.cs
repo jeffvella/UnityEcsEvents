@@ -292,7 +292,7 @@ namespace Performance
         }
 
         [Test, Performance, TestCategory(TestCategory.Performance)]
-        public void QueueAndCreateBufferEvents([Values(1, 10, 100, 1000)] int eventCount, [Values(1, 10, 100, 1000)] int bufferLength)
+        public void QueueAndCreateBufferEvents([Values(1, 10, 100, 1000)] int eventCount, [Values(1, 10, 100, 1000, 10000)] int bufferLength)
         {
             var system = Manager.World.GetOrCreateSystem<BufferEventFromJobsWithCodeSystem>();
 

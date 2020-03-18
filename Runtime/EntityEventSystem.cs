@@ -5,6 +5,8 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs.LowLevel.Unsafe;
 using System.Reflection;
 using System;
+using UnityEngine;
+using Unity.Profiling;
 
 namespace Vella.Events
 {
@@ -77,13 +79,25 @@ namespace Vella.Events
             if (_typeIndexToBatchMap.Length == 0) // 0.003
                 return;
 
+
+            var sw2 = System.Diagnostics.Stopwatch.StartNew();
+
             if (_entities.Length != 0)
             {
+                // Tests show iterating an entity list is much faster until entity numbers grow significantly
+
                 if (_entities.Length < 1000)
+                {
                     EntityManager.DestroyEntity(_entities);
+                }
                 else
+                {
                     EntityManager.DestroyEntity(_allEventsQuery);
+                } 
             }
+
+            sw2.Stop();
+            Debug.Log($"Destroy Took {sw2.Elapsed.TotalMilliseconds:N4}");
 
 
             var mapPtr = UnsafeUtility.AddressOf(ref _typeIndexToBatchMap);
@@ -94,6 +108,11 @@ namespace Vella.Events
             
             var total = 0;
             var totalPtr = &total;
+
+            var sw1 = System.Diagnostics.Stopwatch.StartNew();
+
+            //using (var t1 = new ProfilerMarker("Copy").Auto())
+            //{
 
             Job.WithCode(() =>
             {
@@ -123,9 +142,12 @@ namespace Vella.Events
                     }
                 }
 
-                
-        
             }).Run();
+
+            //}
+
+            sw1.Stop();
+            Debug.Log($"PreWork Took {sw1.Elapsed.TotalMilliseconds:N4}");
 
             var created = 0;
             var sliceLength = total;
@@ -159,13 +181,6 @@ namespace Vella.Events
                 var batchCount = batch.ComponentQueue.CachedCount;
                 var batchPtr = (byte*)writer.ListData->Ptr + created * sizeof(Entity);
                 var array = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<Entity>(batchPtr, batchCount, Allocator.Invalid);
-                //NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref array, safety);
-
-                //*length = remaining - batchCount;
-                //*arrPtr = (Entity*)entitiesPtr1 + created * sizeof(Entity);
-                //*maxIndex = remaining;
-
-                //var batchSlice = new NativeSlice<Entity>(_entities, created, batchCount);
 
                 EntityManager.CreateEntity(batch.Archetype, _entities);
                 
