@@ -91,7 +91,7 @@ namespace Vella.Events
 
     /// <summary>
     /// Wraps management of a queue for storing up components from multiple sources (c# events/systems/jobs/threads).
-    /// This untyped version is a union with <see cref="EventQueue{T}"/>
+    /// This untyped version is a union with <see cref="EventQueue{T}"/> and <see cref="EventQueue{TComponent, TBufferData}"/>
     /// </summary>
     public unsafe struct EventQueue
     {

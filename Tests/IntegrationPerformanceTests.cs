@@ -85,6 +85,7 @@ namespace Performance
             protected override void OnDestroy()
             {
                 _componentTypeInfos.Dispose();
+                _queues.Dispose();
             }
 
             protected unsafe override void OnUpdate()

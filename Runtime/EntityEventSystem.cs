@@ -36,7 +36,11 @@ namespace Vella.Events
             for (int i = 0; i < batches.Length; i++)
                 batches[i].Dispose();
             batches.Dispose();
+
             _typeIndexToBatchMap.Dispose();
+            _batches.Dispose();
+            _buffer.Dispose();
+            _entities.Dispose();
         }
 
 
