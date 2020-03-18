@@ -1,6 +1,7 @@
 using NUnit.Framework;
 using System;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using Unity.Burst;
 using Unity.Collections;
@@ -13,7 +14,7 @@ using Vella.Tests.Attributes;
 using Vella.Tests.Data;
 using Vella.Tests.Fixtures;
 using Vella.Tests.Helpers;
-
+ 
 public unsafe class EventQueueTests : EscQueueTestsFixture
 {
     [Test, TestCategory(TestCategory.Functionality)]
@@ -141,8 +142,11 @@ public unsafe class EventQueueTests : EscQueueTestsFixture
         [NativeDisableContainerSafetyRestriction]
         public NativeArray<int> ThreadUsages;
 
+#pragma warning disable IDE0044, CS0649
         [NativeSetThreadIndex]
         private int _threadIndex;
+#pragma warning restore IDE0044, CS0649
+
 
         public void Execute(int index)
         {
@@ -260,8 +264,10 @@ public unsafe class EventQueueTests : EscQueueTestsFixture
         [ReadOnly] public ArchetypeChunkBufferType<EcsIntElement> BufferType;
         public EventQueue<EcsTestData, EcsIntElement> Events;
 
+#pragma warning disable IDE0044, CS0649
         [NativeSetThreadIndex]
-        internal int _threadIndex;
+        private int _threadIndex;
+#pragma warning restore IDE0044, CS0649
 
         public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
         {

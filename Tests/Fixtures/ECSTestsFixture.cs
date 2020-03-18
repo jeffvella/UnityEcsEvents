@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -56,35 +57,25 @@ namespace Vella.Tests.Fixtures
             return result;
         }
 
-        //public void RunBurst<T>(T action) where T : IBurstAction
-        //{
-        //    var a = action;
-        //    Job.WithCode(() =>
-        //    {
-        //        a.Execute();
-
-        //    }).Run();
-        //}
-
         public unsafe struct  GetThreadIndexJob : IJob
         {
+            private int _test;
+
+#pragma warning disable IDE0044, CS0649
             [NativeSetThreadIndex]
             private int _threadIndex;
+#pragma warning restore IDE0044, CS0649
 
             [NativeDisableUnsafePtrRestriction]
             public int* ThreadIndex;
 
             public void Execute()
             {
-                *ThreadIndex = _threadIndex;
+                *ThreadIndex = _threadIndex; 
             }
         }
     }
 
-    //public interface IBurstAction
-    //{
-    //    void Execute();
-    //}
 
     public abstract class ECSTestsFixture
     {

@@ -14,19 +14,21 @@ namespace Vella.Events
     /// </para>
     /// <para>
     /// This is intended to be passed into jobs, where it will be injected with thread index 
-    /// and utilize the corresponding queue dedicated to that thread.
+    /// and utilize the corresponding queue dedicated for that thread.
     /// </para>Helpers
     /// 
     /// EventQueues do not need to be disposed manually by the systems creating them. 
-    /// They are owned and disposed automatically by <see cref="EntityEventSystem"/>
+    /// They are owned and disposed automatically by <see cref="EntityEventSystem"/> 
     /// </summary>
     /// <typeparam name="T">type of event</typeparam>
-    public unsafe struct EventQueue<T> where T : struct, IComponentData
+    public unsafe struct EventQueue<T> where T : struct, IComponentData  
     {
+#pragma warning disable IDE0044, CS0649
         [NativeSetThreadIndex]
-        internal int _threadIndex;
+        private int _threadIndex;
+#pragma warning restore IDE0044, CS0649
 
-        internal MultiAppendBuffer _data;
+        internal MultiAppendBuffer _data; 
 
         public void Enqueue(T item) => _data.GetBuffer(_threadIndex).Add(item);
 
@@ -42,7 +44,7 @@ namespace Vella.Events
     /// </para>
     /// <para>
     /// This is intended to be passed into jobs, where it will be injected with thread index 
-    /// and utilize the corresponding queue dedicated to that thread.
+    /// and utilize the corresponding queue dedicated for that thread.
     /// </para>
     /// EventQueues do not need to be disposed manually by the systems creating them. 
     /// They are owned and disposed automatically by <see cref="EntityEventSystem"/>
@@ -52,13 +54,15 @@ namespace Vella.Events
         where TComponent : struct, IComponentData
         where TBufferData : unmanaged, IBufferElementData
     {
+#pragma warning disable IDE0044, CS0649
         [NativeSetThreadIndex]
         private int _threadIndex;
+#pragma warning restore IDE0044, CS0649
 
         private MultiAppendBuffer _data;
         private MultiAppendBuffer _bufferMap;
         private MultiAppendBuffer _bufferData;
-
+         
         public void Enqueue(TComponent item, void* items, int length)
         {
             _data.GetBuffer(_threadIndex).Add(item);
@@ -95,8 +99,11 @@ namespace Vella.Events
     /// </summary>
     public unsafe struct EventQueue
     {
+
+#pragma warning disable IDE0044, CS0649
         [NativeSetThreadIndex]
         private int _threadIndex;
+#pragma warning restore IDE0044, CS0649
 
         private MultiAppendBuffer _componentData;
         public MultiAppendBuffer _bufferLinks;
