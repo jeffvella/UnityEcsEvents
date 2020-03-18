@@ -64,7 +64,7 @@ namespace Vella.Events
             _data.GetBuffer(_threadIndex).Add(item);
 
             var buffer = _bufferData.GetBuffer(_threadIndex);
-            var offset = buffer.Size;
+            var offset = buffer.Length;
 
             _bufferMap.GetBuffer(_threadIndex).Add(new BufferLink
             {

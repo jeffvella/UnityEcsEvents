@@ -111,7 +111,7 @@ public unsafe class EventQueueTests : EscQueueTestsFixture
                 if (usageCount == 0)
                     continue;
 
-                var size = baseQueue.GetComponentsForThread(threadId).Size;
+                var size = baseQueue.GetComponentsForThread(threadId).Length;
                 var componentCountForThread = size / sizeof(EcsTestData);
 
                 if (usageCount != componentCountForThread)
@@ -373,13 +373,13 @@ public unsafe class EventQueueTests : EscQueueTestsFixture
 
                 var appendBuffer = baseQueue._bufferData.GetBuffer(link.ThreadIndex);
                 Assert.IsTrue(appendBuffer.Ptr != null);
-                Assert.LessOrEqual(link.Offset, appendBuffer.Size);
+                Assert.LessOrEqual(link.Offset, appendBuffer.Length);
 
                 EcsIntElement* element = (EcsIntElement*)(appendBuffer.Ptr + link.Offset);
                 Assert.IsTrue(element != null);
 
                 for (int j = 0; j < link.Length; j++)
-                    Assert.AreEqual(element[j].Value, j);
+                    Assert.AreEqual(element[j].Value, j); 
             }
         });
     }

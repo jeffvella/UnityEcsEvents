@@ -83,7 +83,7 @@ namespace Vella.Events
             for (int i = -1; i < JobsUtility.MaxJobThreadCount; i++)
             {
                 ref var buffer = ref GetBuffer(i);
-                totalSize += buffer.Size;
+                totalSize += buffer.Length;
             }
             return totalSize;
         }
@@ -126,10 +126,10 @@ namespace Vella.Events
                 for (; Index < JobsUtility.MaxJobThreadCount; Index++)
                 {
                     ref var buffer = ref Data.GetBuffer(Index);
-                    if (buffer.Size > 0)
+                    if (buffer.Length > 0)
                     {
 
-                        var amountToWrite = math.min(maxSizeBytes, buffer.Size);
+                        var amountToWrite = math.min(maxSizeBytes, buffer.Length);
 
                         bytesWritten += amountToWrite;
                         if (bytesWritten > maxSizeBytes)
@@ -142,12 +142,12 @@ namespace Vella.Events
                         WrittenTotal += amountToWrite;
                         WrittenFromIndex += amountToWrite;
 
-                        if (WrittenFromIndex >= buffer.Size)
+                        if (WrittenFromIndex >= buffer.Length)
                         {
                             WrittenFromIndex = 0;
                         } 
                         
-                        if (maxSizeBytes <= buffer.Size)
+                        if (maxSizeBytes <= buffer.Length)
                         {
                             return bytesWritten;
                         }

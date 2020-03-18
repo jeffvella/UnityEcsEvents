@@ -92,7 +92,6 @@ namespace Vella.Tests.Fixtures
         protected World World;
         protected EntityManager Manager;
         protected EntityManager.EntityManagerDebug m_ManagerDebug;
-
         protected EntityQuery EcsTestDataQuery;
         protected EntityEventSystem EventSystem;
 
@@ -105,7 +104,6 @@ namespace Vella.Tests.Fixtures
             World = World.DefaultGameObjectInjectionWorld = new World("Test World");
             Manager = World.EntityManager;
             m_ManagerDebug = new EntityManager.EntityManagerDebug(Manager);
-
             EcsTestDataQuery = Manager.CreateEntityQuery(ComponentType.ReadWrite<EcsTestData>());
             EventSystem = Manager.World.GetOrCreateSystem<EntityEventSystem>();
         }
@@ -117,9 +115,9 @@ namespace Vella.Tests.Fixtures
             {
                 // Clean up systems before calling CheckInternalConsistency because we might have filters etc
                 // holding on SharedComponentData making checks fail
-                while (World.Systems.ToArray().Length > 0)
+                while (World.Systems.Count > 0)
                 {
-                    World.DestroySystem(World.Systems.ToArray()[0]);
+                    World.DestroySystem(World.Systems[0]);
                 }
 
                 m_ManagerDebug.CheckInternalConsistency();
@@ -132,6 +130,51 @@ namespace Vella.Tests.Fixtures
                 Manager = null;
             }
         }
+
+        //protected World m_PreviousWorld;
+        //protected World World;
+        //protected EntityManager Manager;
+        //protected EntityManager.EntityManagerDebug m_ManagerDebug;
+
+        //protected EntityQuery EcsTestDataQuery;
+        //protected EntityEventSystem EventSystem;
+
+        //protected int StressTestEntityCount = 1000;
+
+        //[SetUp]
+        //public virtual void Setup()
+        //{
+        //    m_PreviousWorld = World.DefaultGameObjectInjectionWorld;
+        //    World = World.DefaultGameObjectInjectionWorld = new World("Test World");
+        //    Manager = World.EntityManager;
+        //    m_ManagerDebug = new EntityManager.EntityManagerDebug(Manager);
+
+        //    EcsTestDataQuery = Manager.CreateEntityQuery(ComponentType.ReadWrite<EcsTestData>());
+        //    EventSystem = Manager.World.GetOrCreateSystem<EntityEventSystem>();
+        //}
+
+        //[TearDown]
+        //public virtual void TearDown()
+        //{
+        //    if (Manager != null && Manager.IsCreated)
+        //    {
+        //        Clean up systems before calling CheckInternalConsistency because we might have filters etc
+        //         holding on SharedComponentData making checks fail
+        //        while (World.Systems.ToArray().Length > 0)
+        //        {
+        //            World.DestroySystem(World.Systems.ToArray()[0]);
+        //        }
+
+        //        m_ManagerDebug.CheckInternalConsistency();
+
+        //        World.Dispose();
+        //        World = null;
+
+        //        World.DefaultGameObjectInjectionWorld = m_PreviousWorld;
+        //        m_PreviousWorld = null;
+        //        Manager = null;
+        //    }
+        //}
 
         public static EcsTestData EventComponentData { get; } = new EcsTestData
         {

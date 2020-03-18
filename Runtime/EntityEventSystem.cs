@@ -76,11 +76,11 @@ namespace Vella.Events
 
         protected unsafe override void OnUpdate()
         {
-            if (_typeIndexToBatchMap.Length == 0) // 0.003
+            if (_typeIndexToBatchMap.Count() == 0) // 0.003
                 return;
 
 
-            var sw2 = System.Diagnostics.Stopwatch.StartNew();
+           // var sw2 = System.Diagnostics.Stopwatch.StartNew();
 
             if (_entities.Length != 0)
             {
@@ -96,8 +96,8 @@ namespace Vella.Events
                 } 
             }
 
-            sw2.Stop();
-            Debug.Log($"Destroy Took {sw2.Elapsed.TotalMilliseconds:N4}");
+            //sw2.Stop();
+            //Debug.Log($"Destroy Took {sw2.Elapsed.TotalMilliseconds:N4}");
 
 
             var mapPtr = UnsafeUtility.AddressOf(ref _typeIndexToBatchMap);
@@ -109,7 +109,7 @@ namespace Vella.Events
             var total = 0;
             var totalPtr = &total;
 
-            var sw1 = System.Diagnostics.Stopwatch.StartNew();
+            //var sw1 = System.Diagnostics.Stopwatch.StartNew();
 
             //using (var t1 = new ProfilerMarker("Copy").Auto())
             //{
@@ -121,7 +121,7 @@ namespace Vella.Events
                 //ref var entities = ref UnsafeUtilityEx.AsRef<NativeList<EventBatch>>(entitiesPtr);
                 ref var eventTotal = ref UnsafeUtilityEx.AsRef<int>(totalPtr);
 
-                if (batches.Length < map.Length)
+                if (batches.Length < map.Count())
                 {
                     var values = map.GetValueArray(Allocator.Temp);
                     batches.Clear();
@@ -131,7 +131,7 @@ namespace Vella.Events
                 batchesToProcess.Clear();
                 var ptr = batches.GetUnsafePtr();
 
-                for (int i = 0; i < map.Length; i++)
+                for (int i = 0; i < map.Count(); i++)
                 {
                     ref var batch = ref UnsafeUtilityEx.ArrayElementAsRef<EventBatch>(ptr, i);
                     var count = batch.ComponentQueue.ComponentCount();
@@ -146,8 +146,8 @@ namespace Vella.Events
 
             //}
 
-            sw1.Stop();
-            Debug.Log($"PreWork Took {sw1.Elapsed.TotalMilliseconds:N4}");
+            //sw1.Stop();
+            //Debug.Log($"PreWork Took {sw1.Elapsed.TotalMilliseconds:N4}");
 
             var created = 0;
             var sliceLength = total;
