@@ -53,18 +53,18 @@ namespace Vella.Events
         /// <typeparam name="T">the type of the item being added</typeparam>
         /// <param name="threadIndex">the currently used thread index (or -1 for a shared channel)</param>
         /// <param name="item">the item to be added</param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Enqueue<T>(int threadIndex, T item) where T : struct, IComponentData
         {
-            var buffer = GetBuffer(threadIndex);
-            buffer.Add(item);
+            GetBuffer(threadIndex).Add(item);
         }
-
 
         /// <summary>
         /// Retrieve buffer for a specific thread index.
         /// </summary>
         /// <param name="threadIndex"></param>
         /// <returns></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ref UnsafeAppendBuffer GetBuffer(int threadIndex)
         {
             // All indexes are offset by +1; Unspecified ThreadIndex 
@@ -82,8 +82,7 @@ namespace Vella.Events
             var totalSize = 0;
             for (int i = -1; i < JobsUtility.MaxJobThreadCount; i++)
             {
-                ref var buffer = ref GetBuffer(i);
-                totalSize += buffer.Length;
+                totalSize += GetBuffer(i).Length;
             }
             return totalSize;
         }

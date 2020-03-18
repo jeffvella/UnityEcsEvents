@@ -127,7 +127,7 @@ namespace Performance
                 }
             }
 
-            [BurstCompile]
+            [BurstCompile(CompileSynchronously = true)]
             public struct ThreadedJob : IJobParallelFor
             {
                 public EventQueue Events;

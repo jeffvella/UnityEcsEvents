@@ -10,14 +10,16 @@ using Unity.Profiling;
 
 namespace Vella.Events
 {
-    public class EntityEventSystem : SystemBase
+    public unsafe class EntityEventSystem : SystemBase
     {
         private UnsafeHashMap<int, EventBatch> _typeIndexToBatchMap;
         private ComponentType _eventComponent;
         private EntityQuery _allEventsQuery;
         private NativeList<EventBatch> _batches;
         private NativeList<EventBatch> _buffer;
-        private NativeList<Entity> _entities;
+        private UnsafeList<Entity> _entities;
+        private UnsafeNativeArray _slicer;
+        private ArchetypeChunkComponentType<EntityEvent> _archetypeComponentTypeStub;
 
         protected override void OnCreate()
         {
@@ -27,7 +29,8 @@ namespace Vella.Events
             _allEventsQuery = EntityManager.CreateEntityQuery(_eventComponent);
             _batches = new NativeList<EventBatch>(typeCount, Allocator.Persistent);
             _buffer = new NativeList<EventBatch>(typeCount, Allocator.Persistent);
-            _entities = new NativeList<Entity>(typeCount, Allocator.Persistent);
+            _entities = new UnsafeList<Entity>(typeCount, Allocator.Persistent);
+            _slicer = _entities.ToUnsafeNativeArray();
         }
 
         protected override void OnDestroy()
@@ -43,56 +46,22 @@ namespace Vella.Events
             _entities.Dispose();
         }
 
-
-
-        //// Unity.Entities.EntityDiffer
-        //private unsafe static void DestroyChunkForDiffing(EntityManager entityManager, Chunk* chunk)
-        //{
-        //    chunk->Archetype->EntityCount -= chunk->Count;
-        //    entityManager.EntityComponentStore->FreeEntities(chunk);
-        //    entityManager.EntityComponentStore->SetChunkCountKeepMetaChunk(chunk, 0);
-        //    entityManager.ManagedComponentStore.Playback(ref entityManager.EntityComponentStore->ManagedChangesTracker);
-        //}
-
-        //public unsafe delegate bool AddComponentEntityDelegate(void* entityComponentStore, Entity* entity, int typeIndex);
-
-        //public void SetupDelegate()
-        //{
-        //    // Get the method we want to call.
-        //    MethodInfo inOrderTreeWalkMethod = set.GetType().GetMethod(
-        //        "InOrderTreeWalk", BindingFlags.NonPublic | BindingFlags.Instance);
-
-        //    // Get the internal delegate type from the parameter info.  The type retrieved here
-        //    // is already close-constructed so we don't have to do any generic-related manipulation.
-        //    Type treeWalkPredicateType = inOrderTreeWalkMethod.GetParameters()[0].ParameterType;
-
-        //    // Get the method we want to be called for each node.
-        //    MethodInfo myPredicateMethod = GetType().GetMethod(
-        //        nameof(AddComponentEntityDelegate), BindingFlags.NonPublic | BindingFlags.Instance);
-
-        //    // Create the delegate.  This is where the magic happens.  The runtime validates
-        //    // type compatibility and throws an exception if something's wrong.
-        //    Delegate myPredicateDelegate = myPredicateMethod.CreateDelegate(treeWalkPredicateType, this);
-
-        //    // Call the internal method and pass our delegate.
-        //    bool result = (bool)inOrderTreeWalkMethod.Invoke(set, new object[] { myPredicateDelegate });
-        //}
+        protected override void OnStartRunning()
+        {
+            _archetypeComponentTypeStub = GetArchetypeChunkComponentType<EntityEvent>();
+        }
 
         protected unsafe override void OnUpdate()
         {
-            if (_typeIndexToBatchMap.Count() == 0) // 0.003
+            var mapCount = _typeIndexToBatchMap.Count();
+            if (mapCount == 0)
                 return;
-
-
-           // var sw2 = System.Diagnostics.Stopwatch.StartNew();
 
             if (_entities.Length != 0)
             {
-                // Tests show iterating an entity list is much faster until entity numbers grow significantly
-
                 if (_entities.Length < 1000)
                 {
-                    EntityManager.DestroyEntity(_entities);
+                    EntityManager.DestroyEntity(_slicer.AsNativeArray<Entity>());
                 }
                 else
                 {
@@ -100,42 +69,29 @@ namespace Vella.Events
                 } 
             }
 
-            //sw2.Stop();
-            //Debug.Log($"Destroy Took {sw2.Elapsed.TotalMilliseconds:N4}");
-
-
             var mapPtr = UnsafeUtility.AddressOf(ref _typeIndexToBatchMap);
             var batchesPtr = UnsafeUtility.AddressOf(ref _batches);
             var batchesToProcess = _buffer;
-
-            //var entitiesPtr = UnsafeUtility.AddressOf(ref _entities);
-            
             var total = 0;
             var totalPtr = &total;
-
-            //var sw1 = System.Diagnostics.Stopwatch.StartNew();
-
-            //using (var t1 = new ProfilerMarker("Copy").Auto())
-            //{
 
             Job.WithCode(() =>
             {
                 ref var map = ref UnsafeUtilityEx.AsRef<UnsafeHashMap<int, EventBatch>>(mapPtr);
                 ref var batches = ref UnsafeUtilityEx.AsRef<NativeList<EventBatch>>(batchesPtr);
-                //ref var entities = ref UnsafeUtilityEx.AsRef<NativeList<EventBatch>>(entitiesPtr);
                 ref var eventTotal = ref UnsafeUtilityEx.AsRef<int>(totalPtr);
 
-                if (batches.Length < map.Count())
+                if (batches.Length < mapCount)
                 {
                     var values = map.GetValueArray(Allocator.Temp);
                     batches.Clear();
-                    batches.AddRangeNoResize(values.GetUnsafePtr(), values.Length);
+                    batches.AddRange(values.GetUnsafePtr(), values.Length);
                 }
 
                 batchesToProcess.Clear();
                 var ptr = batches.GetUnsafePtr();
 
-                for (int i = 0; i < map.Count(); i++)
+                for (int i = 0; i < mapCount; i++)
                 {
                     ref var batch = ref UnsafeUtilityEx.ArrayElementAsRef<EventBatch>(ptr, i);
                     var count = batch.ComponentQueue.ComponentCount();
@@ -148,55 +104,26 @@ namespace Vella.Events
 
             }).Run();
 
-            //}
-
-            //sw1.Stop();
-            //Debug.Log($"PreWork Took {sw1.Elapsed.TotalMilliseconds:N4}");
+            if (_entities.Capacity < total)
+            {
+                _entities.Resize(total);
+                _slicer.m_Buffer = _entities.Ptr;
+            }
+            _entities.Length = total;
+            _slicer.m_Length = total;
+            _slicer.m_MaxIndex = total - 1;
 
             var created = 0;
-            var sliceLength = total;
-
-            // Make a copy to modify as a slice.
-
-            var copy = _entities;
-            var writer = copy.AsParallelWriter();
-            var safety = AtomicSafetyHandle.Create();
-            var newPtr = writer.ListData->Ptr;
-
-            _entities.ResizeUninitialized(total);
-
-            //return array;
-
-            //NativeArray<Entity> entitiesTmp = _entities.AsArray();
-            //var entitiesPtr1 = (byte*)entitiesTmp.GetUnsafePtr();
-
-            //Entity** arrPtr = (Entity**)UnsafeUtility.AddressOf(ref entitiesTmp);
-
-            // Make pointers to the fields that need to be modified.
-            //int* length = (int*)((byte*)arrPtr + sizeof(int));
-            //int* minIndex = (int*)((byte*)arrPtr + sizeof(int) * 2);
-            //int* maxIndex = (int*)((byte*)arrPtr + sizeof(int) * 3);
-
-            int remaining = total;
-
             for (int i = 0; i < _buffer.Length; i++)
             {
                 var batch = _buffer[i];
                 var batchCount = batch.ComponentQueue.CachedCount;
-                var batchPtr = (byte*)writer.ListData->Ptr + created * sizeof(Entity);
-                var array = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<Entity>(batchPtr, batchCount, Allocator.Invalid);
-
-                EntityManager.CreateEntity(batch.Archetype, _entities);
-                
+                var arr = _slicer.Slice<Entity>(created, batchCount);
+                EntityManager.CreateEntity(batch.Archetype, arr);
                 created += batchCount;
-
-                //EntityManager.CreateEntity(_buffer[i].Archetype, _buffer[i].ComponentQueue.CachedCount, Allocator.TempJob);
             }
 
-            
-
-            var entityEventComponentType = GetArchetypeChunkComponentType<EntityEvent>();
-            var debugComponentType = GetArchetypeChunkComponentType<EventDebugInfo>();
+            var componentTypeStub = _archetypeComponentTypeStub;
 
             Job.WithCode(() =>
             {
@@ -209,7 +136,7 @@ namespace Vella.Events
                     var chunks = new NativeArray<ArchetypeChunk>(batch.Archetype.ChunkCount, Allocator.Temp);
                     batch.Archetype.CopyChunksTo(chunks);
 
-                    var componentType = entityEventComponentType;
+                    var componentType = componentTypeStub;
                     UnsafeUtility.CopyStructureToPtr(ref batch.ComponentTypeIndex, UnsafeUtility.AddressOf(ref componentType));
                     MultiAppendBuffer.Reader components = batch.ComponentQueue.GetComponentReader();
 
@@ -233,11 +160,11 @@ namespace Vella.Events
 
                     if (batch.HasBuffer)
                     {
-                        var linkType = entityEventComponentType;
+                        var linkType = componentTypeStub;
                         UnsafeUtility.CopyStructureToPtr(ref batch.BufferLinkTypeIndex, UnsafeUtility.AddressOf(ref linkType));
                         MultiAppendBuffer.Reader links = batch.ComponentQueue.GetLinksReader();
 
-                        var bufferType = entityEventComponentType;
+                        var bufferType = componentTypeStub;
                         UnsafeUtility.CopyStructureToPtr(ref batch.BufferTypeIndex, UnsafeUtility.AddressOf(ref bufferType));
 
                         for (int j = 0; j < chunks.Length; j++)
@@ -263,9 +190,9 @@ namespace Vella.Events
                 }
 
             }).Run();
+
         }
         
-
         /// <summary>
         /// Add an event to the default EventQueue.
         /// </summary>
@@ -313,6 +240,9 @@ namespace Vella.Events
             return GetOrCreateBatch<T>().ComponentQueue.Cast<EventQueue<T>>();
         }
 
+        /// <summary>
+        /// Acquire an untyped shared queue for creating events within jobs.
+        /// </summary>
         public EventQueue GetQueue(TypeManager.TypeInfo typeInfo)
         {
             return GetOrCreateBatch(typeInfo).ComponentQueue;

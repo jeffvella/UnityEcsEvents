@@ -95,6 +95,7 @@ namespace Vella.Tests.Fixtures
             World = World.DefaultGameObjectInjectionWorld = new World("Test World");
             Manager = World.EntityManager;
             m_ManagerDebug = new EntityManager.EntityManagerDebug(Manager);
+
             EcsTestDataQuery = Manager.CreateEntityQuery(ComponentType.ReadWrite<EcsTestData>());
             EventSystem = Manager.World.GetOrCreateSystem<EntityEventSystem>();
         }
@@ -119,6 +120,9 @@ namespace Vella.Tests.Fixtures
                 World.DefaultGameObjectInjectionWorld = m_PreviousWorld;
                 m_PreviousWorld = null;
                 Manager = null;
+
+                EventSystem = null;
+                EcsTestDataQuery = null;
             }
         }
 
