@@ -12,11 +12,11 @@ namespace Vella.Events
 {
     public unsafe class EntityEventSystem : SystemBase
     {
-        private UnsafeHashMap<int, EventBatch> _typeIndexToBatchMap;
+        private UnsafeHashMap<int, EventArchetype> _typeIndexToBatchMap;
         private ComponentType _eventComponent;
         private EntityQuery _allEventsQuery;
-        private NativeList<EventBatch> _batches;
-        private NativeList<EventBatch> _buffer;
+        private NativeList<EventArchetype> _batches;
+        private NativeList<EventArchetype> _buffer;
         private UnsafeList<Entity> _entities;
         private UnsafeNativeArray _slicer;
         private ArchetypeChunkComponentType<EntityEvent> _archetypeComponentTypeStub;
@@ -24,13 +24,15 @@ namespace Vella.Events
         protected override void OnCreate()
         {
             var typeCount = TypeManager.GetTypeCount();
-            _typeIndexToBatchMap = new UnsafeHashMap<int, EventBatch>(typeCount, Allocator.Persistent);
+            _typeIndexToBatchMap = new UnsafeHashMap<int, EventArchetype>(typeCount, Allocator.Persistent);
             _eventComponent = ComponentType.ReadOnly<EntityEvent>();
             _allEventsQuery = EntityManager.CreateEntityQuery(_eventComponent);
-            _batches = new NativeList<EventBatch>(typeCount, Allocator.Persistent);
-            _buffer = new NativeList<EventBatch>(typeCount, Allocator.Persistent);
+            _batches = new NativeList<EventArchetype>(typeCount, Allocator.Persistent);
+            _buffer = new NativeList<EventArchetype>(typeCount, Allocator.Persistent);
             _entities = new UnsafeList<Entity>(typeCount, Allocator.Persistent);
             _slicer = _entities.ToUnsafeNativeArray();
+
+  
         }
 
         protected override void OnDestroy()
@@ -44,11 +46,6 @@ namespace Vella.Events
             _batches.Dispose();
             _buffer.Dispose();
             _entities.Dispose();
-        }
-
-        protected override void OnStartRunning()
-        {
-            _archetypeComponentTypeStub = GetArchetypeChunkComponentType<EntityEvent>();
         }
 
         protected unsafe override void OnUpdate()
@@ -69,17 +66,18 @@ namespace Vella.Events
                 } 
             }
 
+            var batchesToProcess = _buffer;
             var mapPtr = UnsafeUtility.AddressOf(ref _typeIndexToBatchMap);
             var batchesPtr = UnsafeUtility.AddressOf(ref _batches);
-            var batchesToProcess = _buffer;
-            var total = 0;
-            var totalPtr = &total;
+            var entitiesPtr = UnsafeUtility.AddressOf(ref _entities);
+            var slicerPtr = UnsafeUtility.AddressOf(ref _slicer);
 
             Job.WithCode(() =>
             {
-                ref var map = ref UnsafeUtilityEx.AsRef<UnsafeHashMap<int, EventBatch>>(mapPtr);
-                ref var batches = ref UnsafeUtilityEx.AsRef<NativeList<EventBatch>>(batchesPtr);
-                ref var eventTotal = ref UnsafeUtilityEx.AsRef<int>(totalPtr);
+                ref var map = ref UnsafeUtilityEx.AsRef<UnsafeHashMap<int, EventArchetype>>(mapPtr);
+                ref var batches = ref UnsafeUtilityEx.AsRef<NativeList<EventArchetype>>(batchesPtr);
+                ref var entities = ref UnsafeUtilityEx.AsRef<UnsafeList<Entity>>(entitiesPtr);
+                ref var slicer = ref UnsafeUtilityEx.AsRef<UnsafeNativeArray>(slicerPtr);
 
                 if (batches.Length < mapCount)
                 {
@@ -91,27 +89,29 @@ namespace Vella.Events
                 batchesToProcess.Clear();
                 var ptr = batches.GetUnsafePtr();
 
+                int total = 0;
                 for (int i = 0; i < mapCount; i++)
                 {
-                    ref var batch = ref UnsafeUtilityEx.ArrayElementAsRef<EventBatch>(ptr, i);
-                    var count = batch.ComponentQueue.ComponentCount();
+                    ref var archetype = ref UnsafeUtilityEx.ArrayElementAsRef<EventArchetype>(ptr, i);
+                    var count = archetype.ComponentQueue.ComponentCount();
                     if (count != 0)
                     {
-                        batchesToProcess.Add(batch);
-                        eventTotal += count;
+                        batchesToProcess.Add(archetype);
+                        total += count;
                     }
                 }
 
-            }).Run();
+                if (entities.Capacity < total)
+                {
+                    entities.Resize(total);
+                    slicer.m_Buffer = entities.Ptr;
+                }
 
-            if (_entities.Capacity < total)
-            {
-                _entities.Resize(total);
-                _slicer.m_Buffer = _entities.Ptr;
-            }
-            _entities.Length = total;
-            _slicer.m_Length = total;
-            _slicer.m_MaxIndex = total - 1;
+                entities.Length = total;
+                slicer.m_Length = total;
+                slicer.m_MaxIndex = total - 1;
+
+            }).Run();
 
             var created = 0;
             for (int i = 0; i < _buffer.Length; i++)
@@ -123,68 +123,49 @@ namespace Vella.Events
                 created += batchCount;
             }
 
-            var componentTypeStub = _archetypeComponentTypeStub;
-
             Job.WithCode(() =>
             {
                 var ptr = batchesToProcess.GetUnsafePtr();
 
                 for (int i = 0; i < batchesToProcess.Length; i++)
                 {
-                    ref var batch = ref UnsafeUtilityEx.ArrayElementAsRef<EventBatch>(ptr, i);
+                    ref var batch = ref UnsafeUtilityEx.ArrayElementAsRef<EventArchetype>(ptr, i);
 
-                    var chunks = new NativeArray<ArchetypeChunk>(batch.Archetype.ChunkCount, Allocator.Temp);
+                    var chunks = new NativeArray<ArchetypeChunk>(batch.Archetype.ChunkCount, Allocator.TempJob);
                     batch.Archetype.CopyChunksTo(chunks);
 
-                    var componentType = componentTypeStub;
-                    UnsafeUtility.CopyStructureToPtr(ref batch.ComponentTypeIndex, UnsafeUtility.AddressOf(ref componentType));
                     MultiAppendBuffer.Reader components = batch.ComponentQueue.GetComponentReader();
 
                     for (int j = 0; j < chunks.Length; j++)
                     {
                         var chunk = chunks[j];
-
-                        var componentPtr = (byte*)chunk.GetNativeArray(componentType).GetUnsafeReadOnlyPtr();
-                        components.CopyTo(componentPtr, chunk.Count * batch.ComponentTypeSize);
-
-                        //var debugs = chunk.GetNativeArray(debugComponentType);
-                        //for (int z = 0; z < debugs.Length; z++)
-                        //{
-                        //    debugs[z] = new EventDebugInfo
-                        //    {
-                        //        ChunkIndex = j,
-                        //        IndexInChunk = z,
-                        //    };
-                        //}
+                        components.CopyTo(batch.GetComponentPointer(chunk), chunk.Count * batch.ComponentTypeSize);
                     }
 
                     if (batch.HasBuffer)
                     {
-                        var linkType = componentTypeStub;
-                        UnsafeUtility.CopyStructureToPtr(ref batch.BufferLinkTypeIndex, UnsafeUtility.AddressOf(ref linkType));
                         MultiAppendBuffer.Reader links = batch.ComponentQueue.GetLinksReader();
-
-                        var bufferType = componentTypeStub;
-                        UnsafeUtility.CopyStructureToPtr(ref batch.BufferTypeIndex, UnsafeUtility.AddressOf(ref bufferType));
 
                         for (int j = 0; j < chunks.Length; j++)
                         {
-                            var chunk = chunks[j];
+                            ArchetypeChunk chunk = chunks[j];
+                            byte* chunkBufferHeaders = batch.GetBufferPointer(chunk);
+                            byte* chunkLinks = batch.GetBufferLinkPointer(chunk);
 
-                            BufferHeaderProxy* bufferHeaderPtr = (BufferHeaderProxy*)chunk.GetNativeArray(bufferType).GetUnsafeReadOnlyPtr();
-                            BufferLink* linkPtr = (BufferLink*)chunk.GetNativeArray(linkType).GetUnsafeReadOnlyPtr();
-                            links.CopyTo(linkPtr, chunk.Count * UnsafeUtility.SizeOf<BufferLink>());
+                            links.CopyTo(chunkLinks, chunk.Count * UnsafeUtility.SizeOf<BufferLink>());
 
                             for (int x = 0; x < chunk.Count; x++)
                             {
-                                BufferHeaderProxy* bufferHeader = (BufferHeaderProxy*)((byte*)bufferHeaderPtr + x * batch.BufferTypeInfo.SizeInChunk);
-                                BufferLink* link = (BufferLink*)((byte*)linkPtr + x * UnsafeUtility.SizeOf<BufferLink>());
+                                BufferHeaderProxy* bufferHeader = (BufferHeaderProxy*)(chunkBufferHeaders + x * batch.BufferTypeInfo.SizeInChunk);
+                                BufferLink* link = (BufferLink*)(chunkLinks + x * UnsafeUtility.SizeOf<BufferLink>());
 
                                 ref var source = ref batch.ComponentQueue._bufferData.GetBuffer(link->ThreadIndex);
                                 BufferHeaderProxy.Assign(bufferHeader, source.Ptr + link->Offset, link->Length, batch.BufferTypeInfo.ElementSize, batch.BufferTypeInfo.AlignmentInBytes, default, default);
                             }
                         }
                     }
+
+                    chunks.Dispose();
 
                     batch.ComponentQueue.Clear();
                 }
@@ -196,7 +177,7 @@ namespace Vella.Events
         /// <summary>
         /// Add an event to the default EventQueue.
         /// </summary>
-        public void Enqueue<T>(T item) where T : struct, IComponentData
+        public void Enqueue<T>(T item = default) where T : struct, IComponentData
         {
             GetQueue<T>().Enqueue(item);
         }
@@ -261,36 +242,36 @@ namespace Vella.Events
             return GetOrCreateBatch<TComponent,TBufferData>().ComponentQueue.Cast<EventQueue<TComponent,TBufferData>>();
         }
 
-        private EventBatch GetOrCreateBatch<T>() where T : struct, IComponentData
+        private EventArchetype GetOrCreateBatch<T>() where T : struct, IComponentData
         {
             int key = TypeManager.GetTypeIndex<T>();
-            if (!_typeIndexToBatchMap.TryGetValue(key, out EventBatch batch))
+            if (!_typeIndexToBatchMap.TryGetValue(key, out EventArchetype batch))
             {
-                batch = EventBatch.Create<T>(EntityManager, _eventComponent, Allocator.Persistent);
+                batch = EventArchetype.Create<T>(EntityManager, _eventComponent, Allocator.Persistent);
                 _typeIndexToBatchMap[key] = batch;
             }
             return batch;
         }
 
-        public EventBatch GetOrCreateBatch(TypeManager.TypeInfo typeInfo)
+        public EventArchetype GetOrCreateBatch(TypeManager.TypeInfo typeInfo)
         {
             int key = typeInfo.TypeIndex;
-            if (!_typeIndexToBatchMap.TryGetValue(key, out EventBatch batch))
+            if (!_typeIndexToBatchMap.TryGetValue(key, out EventArchetype batch))
             {
-                batch = EventBatch.Create(EntityManager, _eventComponent, typeInfo, Allocator.Persistent);
+                batch = EventArchetype.Create(EntityManager, _eventComponent, typeInfo, Allocator.Persistent);
                 _typeIndexToBatchMap[key] = batch;
             }
             return batch;
         }
 
-        private EventBatch GetOrCreateBatch<TComponent,TBufferData>()
+        private EventArchetype GetOrCreateBatch<TComponent,TBufferData>()
             where TComponent : struct, IComponentData
             where TBufferData : unmanaged, IBufferElementData
         {
             var key = GetHashCode<TComponent, TBufferData>();
-            if (!_typeIndexToBatchMap.TryGetValue(key, out EventBatch batch))
+            if (!_typeIndexToBatchMap.TryGetValue(key, out EventArchetype batch))
             {
-                batch = EventBatch.Create<TComponent,TBufferData>(EntityManager, _eventComponent, Allocator.Persistent);
+                batch = EventArchetype.Create<TComponent,TBufferData>(EntityManager, _eventComponent, Allocator.Persistent);
                 _typeIndexToBatchMap[key] = batch;
             }
             return batch;

@@ -70,7 +70,7 @@ namespace Performance
 
                 if (!_componentTypeInfos.IsCreated)
                 {
-                    var types = TypeManager.GetAllTypes().Where(t => t.Category == TypeManager.TypeCategory.ComponentData 
+                    var types = TypeManager.GetAllTypes().Where(t => t.SizeInChunk > 1 &&  t.Category == TypeManager.TypeCategory.ComponentData 
                         && t.SizeInChunk > 0 
                         && !t.Type.FullName.Contains(nameof(Vella.Events))); // avoid 2x the same type on an entity exception
 
