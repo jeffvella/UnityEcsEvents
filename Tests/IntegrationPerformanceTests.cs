@@ -50,14 +50,12 @@ namespace Performance
                     archetypeCount = value;
 
                     // Pick a random block of IComponentData
-                    var start = _random.Next(0, _componentTypeInfos.Length - value - 1);
-                    var end = start + value;
-
                     _queues.Clear();
 
-                    for (int i = start; i < end; i++)
+                    for (int i = 0; i < value; i++)
                     {
-                        var queue = _eventSystem.GetQueue(_componentTypeInfos[i]);
+                        var idx = _random.Next(0, _componentTypeInfos.Length - 1);
+                        var queue = _eventSystem.GetQueue(_componentTypeInfos[idx]);
                         _queues.Add(queue);
                     }
                 }
@@ -207,6 +205,49 @@ namespace Performance
         }
 
         [Test, Performance, TestCategory(TestCategory.Performance)]
+        public void CreateHighComponents([Values(1, 10, 100, 1000, 10000)] int eventsPerarchetype, [Values(1, 10, 50, 500)] int archetypeCount)
+        {
+            var system = Manager.World.GetOrCreateSystem<LoadTestSystem>();
+            system.EventsPerArchetype = eventsPerarchetype;
+            system.ArchetypeCount = archetypeCount;
+            system.Update();
+
+            Measure.Method(() =>
+            {
+                EventSystem.Update();
+            })
+            .MeasurementCount(1)
+            .WarmupCount(0)
+            .IterationsPerMeasurement(1)
+            .Run();
+        }
+
+        [Test, Performance, TestCategory(TestCategory.Performance)]
+        public void QueueAndCreateHighArchetypes([Values(1, 10)] int eventsPerarchetype, [Values(1, 5, 15, 50, 100)] int archetypeCount)
+        {
+            var system = Manager.World.GetOrCreateSystem<LoadTestSystem>();
+            system.EventsPerArchetype = eventsPerarchetype;
+            system.ArchetypeCount = archetypeCount;
+
+            Measure.Method(() =>
+            {
+                system.Update();
+                EventSystem.Update();
+            })
+            .SetUp(() =>
+            {
+
+            })
+            .CleanUp(() =>
+            {
+
+            })
+            .WarmupCount(5)
+            .IterationsPerMeasurement(1)
+            .Run();
+        }
+
+        [Test, Performance, TestCategory(TestCategory.Performance)]
         public void QueueAndCreateThreaded([Values(1, 500, 25000, 100000, 500000)] int eventsPerarchetype, [Values(1, 2, 5, 8)] int threadCount)
         {
             var system = Manager.World.GetOrCreateSystem<LoadTestSystem>();
@@ -234,31 +275,7 @@ namespace Performance
             .Run();
         }
 
-        [Test, Performance, TestCategory(TestCategory.Performance)]
-        public void QueueAndCreateHighArchetypes([Values(1, 10)] int eventsPerarchetype, [Values(1, 5, 15, 50, 100)] int archetypeCount)
-        {
-            var system = Manager.World.GetOrCreateSystem<LoadTestSystem>();
 
-            system.EventsPerArchetype = eventsPerarchetype;
-            system.ArchetypeCount = archetypeCount;
-
-            Measure.Method(() =>
-            {
-                system.Update();
-                EventSystem.Update();
-            })
-            .SetUp(() =>
-            {
-
-            })
-            .CleanUp(() =>
-            {
-
-            })
-            .WarmupCount(5)
-            .IterationsPerMeasurement(1)
-            .Run();
-        }
 
         [DisableAutoCreation]
         public class BufferEventFromJobsWithCodeSystem : SystemBase
