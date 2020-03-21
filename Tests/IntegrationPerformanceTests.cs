@@ -54,8 +54,8 @@ namespace Performance
 
                     for (int i = 0; i < value; i++)
                     {
-                        var idx = _random.Next(0, _componentTypeInfos.Length - 1);
-                        var queue = _eventSystem.GetQueue(_componentTypeInfos[idx]);
+                        //var idx = _random.Next(0, _componentTypeInfos.Length - 1);
+                        var queue = _eventSystem.GetQueue(_componentTypeInfos[i]);
                         _queues.Add(queue);
                     }
                 }
@@ -186,23 +186,27 @@ namespace Performance
             system.EventsPerArchetype = eventsPerarchetype;
             system.ArchetypeCount = archetypeCount;
 
+            var markers = new[] {
+                nameof(EntityEventSystem.Markers.Setup),
+                nameof(EntityEventSystem.Markers.DestroyEntities),
+                nameof(EntityEventSystem.Markers.CreateEntities),
+            };
+
             Measure.Method(() =>
             {
                 system.Update();
                 EventSystem.Update();
             })
-            .SetUp(() =>
-            {
-
-            })
-            .CleanUp(() =>
-            {
-
-            })
             .WarmupCount(5)
+            //.ProfilerMarkers(markers)
+            .MeasurementCount(25)
             .IterationsPerMeasurement(1)
+            //.SampleGroup($"{archetypeCount} event {Pluralize(archetypeCount, "type")}, each with {eventsPerarchetype} components-only {Pluralize(eventsPerarchetype, "event")} ({archetypeCount * eventsPerarchetype} {Pluralize(eventsPerarchetype, "event")} total)")
             .Run();
         }
+
+
+
 
         [Test, Performance, TestCategory(TestCategory.Performance)]
         public void CreateHighComponents([Values(1, 10, 100, 1000, 10000)] int eventsPerarchetype, [Values(1, 10, 50, 500)] int archetypeCount)

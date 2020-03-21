@@ -235,6 +235,8 @@ namespace Vella.Tests.Fixtures
             return entity;
         }
 
+        public static string Pluralize(int number, string token) => number > 1 ? token + 's' : token;
+
         public static Type FindType(string fullName)
         {
             return

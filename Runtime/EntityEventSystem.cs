@@ -7,6 +7,8 @@ using System.Reflection;
 using System;
 using UnityEngine;
 using Unity.Profiling;
+using System.Diagnostics;
+using Debug = UnityEngine.Debug;
 
 namespace Vella.Events
 {
@@ -18,7 +20,9 @@ namespace Vella.Events
         private NativeList<EventArchetype> _batches;
         private NativeList<EventArchetype> _buffer;
         private UnsafeList<Entity> _entities;
-        private UnsafeNativeArray _slicer;
+        private UnsafeNativeArray _entitySlicer;
+        private UnsafeList<ArchetypeChunk> _chunks;
+        private UnsafeNativeArray _chunkSlicer;
         private ArchetypeChunkComponentType<EntityEvent> _archetypeComponentTypeStub;
 
         protected override void OnCreate()
@@ -30,9 +34,9 @@ namespace Vella.Events
             _batches = new NativeList<EventArchetype>(typeCount, Allocator.Persistent);
             _buffer = new NativeList<EventArchetype>(typeCount, Allocator.Persistent);
             _entities = new UnsafeList<Entity>(typeCount, Allocator.Persistent);
-            _slicer = _entities.ToUnsafeNativeArray();
-
-  
+            _entitySlicer = _entities.ToUnsafeNativeArray();
+            _chunks = new UnsafeList<ArchetypeChunk>(0, Allocator.Persistent);
+            _chunkSlicer = _entities.ToUnsafeNativeArray();
         }
 
         protected override void OnDestroy()
@@ -46,38 +50,63 @@ namespace Vella.Events
             _batches.Dispose();
             _buffer.Dispose();
             _entities.Dispose();
+            _chunks.Dispose();
+        }
+
+        public struct Markers
+        {
+            public static readonly ProfilerMarker Setup = new ProfilerMarker($"{nameof(Setup)}");
+            public static readonly ProfilerMarker DestroyEntities = new ProfilerMarker($"{nameof(DestroyEntities)}");
+            public static readonly ProfilerMarker CreateEntities = new ProfilerMarker($"{nameof(CreateEntities)}");
         }
 
         protected unsafe override void OnUpdate()
         {
+
+            //var countSW = Stopwatch.StartNew();
             var mapCount = _typeIndexToBatchMap.Count();
+            //countSW.Stop();
+            //Debug.Log($"Count took {countSW.Elapsed.TotalMilliseconds:N4}");
+
             if (mapCount == 0)
                 return;
 
+            //EntityManager.UnlockChunk(_chunkSlicer.AsNativeArray<ArchetypeChunk>());
+
+            var destroySW = Stopwatch.StartNew();
             if (_entities.Length != 0)
             {
                 if (_entities.Length < 1000)
                 {
-                    EntityManager.DestroyEntity(_slicer.AsNativeArray<Entity>());
+                    EntityManager.DestroyEntity(_entitySlicer.AsNativeArray<Entity>());
                 }
                 else
                 {
+                    
                     EntityManager.DestroyEntity(_allEventsQuery);
                 } 
             }
+            //destroySW.Stop();
+            //Debug.Log($"Destroy took {destroySW.Elapsed.TotalMilliseconds:N4}");
+
+            var setupSW = Stopwatch.StartNew();
 
             var batchesToProcess = _buffer;
             var mapPtr = UnsafeUtility.AddressOf(ref _typeIndexToBatchMap);
             var batchesPtr = UnsafeUtility.AddressOf(ref _batches);
             var entitiesPtr = UnsafeUtility.AddressOf(ref _entities);
-            var slicerPtr = UnsafeUtility.AddressOf(ref _slicer);
+            var entitySlicerPtr = UnsafeUtility.AddressOf(ref _entitySlicer);
+            var chunksPtr = UnsafeUtility.AddressOf(ref _chunks);
+            var chunkSlicerPtr = UnsafeUtility.AddressOf(ref _chunkSlicer);
 
             Job.WithCode(() =>
             {
                 ref var map = ref UnsafeUtilityEx.AsRef<UnsafeHashMap<int, EventArchetype>>(mapPtr);
                 ref var batches = ref UnsafeUtilityEx.AsRef<NativeList<EventArchetype>>(batchesPtr);
                 ref var entities = ref UnsafeUtilityEx.AsRef<UnsafeList<Entity>>(entitiesPtr);
-                ref var slicer = ref UnsafeUtilityEx.AsRef<UnsafeNativeArray>(slicerPtr);
+                ref var entitySlicer = ref UnsafeUtilityEx.AsRef<UnsafeNativeArray>(entitySlicerPtr);
+                ref var chunks = ref UnsafeUtilityEx.AsRef<UnsafeList<ArchetypeChunk>>(chunksPtr);
+                ref var chunkSlicer = ref UnsafeUtilityEx.AsRef<UnsafeNativeArray>(chunkSlicerPtr);
 
                 if (batches.Length < mapCount)
                 {
@@ -89,72 +118,112 @@ namespace Vella.Events
                 batchesToProcess.Clear();
                 var ptr = batches.GetUnsafePtr();
 
-                int total = 0;
+                int totalBatches = 0;
+                int totalChunks = 0;
+
                 for (int i = 0; i < mapCount; i++)
                 {
                     ref var archetype = ref UnsafeUtilityEx.ArrayElementAsRef<EventArchetype>(ptr, i);
+
                     var count = archetype.ComponentQueue.ComponentCount();
                     if (count != 0)
                     {
                         batchesToProcess.Add(archetype);
-                        total += count;
+                        totalChunks += 1 + (count / archetype.Archetype.ChunkCapacity);
+                        totalBatches += count;
                     }
                 }
 
-                if (entities.Capacity < total)
+                if (chunks.Capacity < totalChunks)
                 {
-                    entities.Resize(total);
-                    slicer.m_Buffer = entities.Ptr;
+                    chunks.Resize(totalChunks);
+                    chunkSlicer.m_Buffer = chunks.Ptr;
                 }
+                chunks.Length = totalChunks;
+                chunkSlicer.m_Length = totalChunks;
+                chunkSlicer.m_MaxIndex = totalChunks - 1;
 
-                entities.Length = total;
-                slicer.m_Length = total;
-                slicer.m_MaxIndex = total - 1;
+                if (entities.Capacity < totalBatches)
+                {
+                    entities.Resize(totalBatches);
+                    entitySlicer.m_Buffer = entities.Ptr;
+                }
+                entities.Length = totalBatches;
+                entitySlicer.m_Length = totalBatches;
+                entitySlicer.m_MaxIndex = totalBatches - 1;
 
             }).Run();
 
+            //setupSW.Stop();
+            //Debug.Log($"Setup took {setupSW.Elapsed.TotalMilliseconds:N4}");
+
+            //Markers.Setup.End();
+            //Markers.CreateEntities.Begin();
+
+            //var createSW = Stopwatch.StartNew();
             var created = 0;
             for (int i = 0; i < _buffer.Length; i++)
             {
                 var batch = _buffer[i];
                 var batchCount = batch.ComponentQueue.CachedCount;
-                var arr = _slicer.Slice<Entity>(created, batchCount);
+                var arr = _entitySlicer.Slice<Entity>(created, batchCount);
                 EntityManager.CreateEntity(batch.Archetype, arr);
                 created += batchCount;
             }
+            //createSW.Stop();
+            //Debug.Log($"Create took {createSW.Elapsed.TotalMilliseconds:N4}");
+
+            //var setSW = Stopwatch.StartNew();
+            //Markers.CreateEntities.End();
+
+            // Note, nothing should be writing to these collections because EntityManager.CreateEntity finished all jobs.
 
             Job.WithCode(() =>
             {
                 var ptr = batchesToProcess.GetUnsafePtr();
+                int chunkOffset = 0;
+
+                ref var chunkSlicer = ref UnsafeUtilityEx.AsRef<UnsafeNativeArray>(chunkSlicerPtr);
 
                 for (int i = 0; i < batchesToProcess.Length; i++)
                 {
                     ref var batch = ref UnsafeUtilityEx.ArrayElementAsRef<EventArchetype>(ptr, i);
 
-                    var chunks = new NativeArray<ArchetypeChunk>(batch.Archetype.ChunkCount, Allocator.TempJob);
+                    var chunkCount = batch.Archetype.ChunkCount;
+
+                    //var chunks = new NativeArray<ArchetypeChunk>(chunkCount, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+
+                    var chunks = chunkSlicer.Slice<ArchetypeChunk>(chunkOffset, chunkCount);
+
+                    chunkOffset += chunkCount;
+
                     batch.Archetype.CopyChunksTo(chunks);
 
                     MultiAppendBuffer.Reader components = batch.ComponentQueue.GetComponentReader();
 
-                    for (int j = 0; j < chunks.Length; j++)
+                    for (int j = 0; j < chunkCount; j++)
                     {
                         var chunk = chunks[j];
-                        components.CopyTo(batch.GetComponentPointer(chunk), chunk.Count * batch.ComponentTypeSize);
+                        var entityCount = chunk.Count;
+
+                        components.CopyTo(batch.GetComponentPointer(chunk), entityCount * batch.ComponentTypeSize);
                     }
 
                     if (batch.HasBuffer)
                     {
                         MultiAppendBuffer.Reader links = batch.ComponentQueue.GetLinksReader();
 
-                        for (int j = 0; j < chunks.Length; j++)
+                        for (int j = 0; j < chunkCount; j++)
                         {
                             ArchetypeChunk chunk = chunks[j];
+                            var entityCount = chunk.Count;
+
                             byte* chunkBufferHeaders = batch.GetBufferPointer(chunk);
                             byte* chunkLinks = batch.GetBufferLinkPointer(chunk);
 
-                            links.CopyTo(chunkLinks, chunk.Count * UnsafeUtility.SizeOf<BufferLink>());
+                            links.CopyTo(chunkLinks, entityCount * UnsafeUtility.SizeOf<BufferLink>());
 
-                            for (int x = 0; x < chunk.Count; x++)
+                            for (int x = 0; x < entityCount; x++)
                             {
                                 BufferHeaderProxy* bufferHeader = (BufferHeaderProxy*)(chunkBufferHeaders + x * batch.BufferTypeInfo.SizeInChunk);
                                 BufferLink* link = (BufferLink*)(chunkLinks + x * UnsafeUtility.SizeOf<BufferLink>());
@@ -165,13 +234,17 @@ namespace Vella.Events
                         }
                     }
 
-                    chunks.Dispose();
+                    //chunks.Dispose();
 
                     batch.ComponentQueue.Clear();
                 }
 
             }).Run();
 
+            //EntityManager.LockChunk(_chunkSlicer.AsNativeArray<ArchetypeChunk>());
+
+            //setSW.Stop();
+            //Debug.Log($"SetData took {setSW.Elapsed.TotalMilliseconds:N4}");
         }
         
         /// <summary>
