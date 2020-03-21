@@ -23,6 +23,7 @@ namespace Vella.Events
         private UnsafeNativeArray _entitySlicer;
         private UnsafeList<ArchetypeChunk> _chunks;
         private UnsafeNativeArray _chunkSlicer;
+        private UnsafeEntityManager _unsafeEntityManager;
         private ArchetypeChunkComponentType<EntityEvent> _archetypeComponentTypeStub;
 
         protected override void OnCreate()
@@ -37,6 +38,7 @@ namespace Vella.Events
             _entitySlicer = _entities.ToUnsafeNativeArray();
             _chunks = new UnsafeList<ArchetypeChunk>(0, Allocator.Persistent);
             _chunkSlicer = _entities.ToUnsafeNativeArray();
+            _unsafeEntityManager = new UnsafeEntityManager(EntityManager);
         }
 
         protected override void OnDestroy()
@@ -154,29 +156,18 @@ namespace Vella.Events
 
             }).Run();
 
-            //setupSW.Stop();
-            //Debug.Log($"Setup took {setupSW.Elapsed.TotalMilliseconds:N4}");
 
-            //Markers.Setup.End();
-            //Markers.CreateEntities.Begin();
-
-            //var createSW = Stopwatch.StartNew();
             var created = 0;
             for (int i = 0; i < _buffer.Length; i++)
             {
                 var batch = _buffer[i];
                 var batchCount = batch.ComponentQueue.CachedCount;
-                var arr = _entitySlicer.Slice<Entity>(created, batchCount);
-                EntityManager.CreateEntity(batch.Archetype, arr);
+
+                _unsafeEntityManager.CreateEntity(batch.Archetype, _entities.Ptr, batchCount, created);
+
                 created += batchCount;
             }
-            //createSW.Stop();
-            //Debug.Log($"Create took {createSW.Elapsed.TotalMilliseconds:N4}");
 
-            //var setSW = Stopwatch.StartNew();
-            //Markers.CreateEntities.End();
-
-            // Note, nothing should be writing to these collections because EntityManager.CreateEntity finished all jobs.
 
             Job.WithCode(() =>
             {
