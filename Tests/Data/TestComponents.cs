@@ -16,22 +16,22 @@ namespace Vella.Tests.Data
         int GetValue();
     }
 
-    public struct EcsTestData : IComponentData, IGetValue
-    {
-        public int value;
+    //public struct EcsTestData : IComponentData, IGetValue
+    //{
+    //    public int value;
 
-        public EcsTestData(int inValue)
-        {
-            value = inValue;
-        }
+    //    public EcsTestData(int inValue)
+    //    {
+    //        value = inValue;
+    //    }
 
-        public override string ToString()
-        {
-            return value.ToString();
-        }
+    //    public override string ToString()
+    //    {
+    //        return value.ToString();
+    //    }
 
-        public int GetValue() => value;
-    }
+    //    public int GetValue() => value;
+    //}
 
     public struct EcsTestDataZeroSized : IComponentData
     {

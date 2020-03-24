@@ -8,6 +8,7 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Jobs.LowLevel.Unsafe;
+using Unity.Mathematics;
 using Unity.PerformanceTesting;
 using Vella.Events;
 using Vella.Tests.Attributes;
@@ -24,7 +25,7 @@ namespace Performance
             private EventQueue _queue;
 
             private static NativeArray<TypeManager.TypeInfo> _componentTypeInfos;
-            private Random _random;
+            private UnityEngine.Random _random;
             private int archetypeCount = 1;
             private EntityEventSystem _eventSystem;
 
@@ -55,7 +56,8 @@ namespace Performance
                     for (int i = 0; i < value; i++)
                     {
                         //var idx = _random.Next(0, _componentTypeInfos.Length - 1);
-                        var queue = _eventSystem.GetQueue(_componentTypeInfos[i]);
+                        var info = _componentTypeInfos[math.min(i, _componentTypeInfos.Length - 1)];
+                        var queue = _eventSystem.GetQueue(info);
                         _queues.Add(queue);
                     }
                 }
@@ -68,14 +70,19 @@ namespace Performance
 
                 if (!_componentTypeInfos.IsCreated)
                 {
+                    // Store all the component types so that we can simiulate events with them.
+                    // * Avoid ChunkHeader - EntityManagerDebug.CheckInternalConsistency() will fail tests if ChunkHeader component is used.
+                    // * Avoid all test data components or there's a chance to get 2x on the same entity.
+
+                    var chunkHeaderTypeIndex = TypeManager.GetTypeIndex<ChunkHeader>(); 
+
                     var types = TypeManager.GetAllTypes().Where(t => t.SizeInChunk > 1 &&  t.Category == TypeManager.TypeCategory.ComponentData 
-                        && t.SizeInChunk > 0 
-                        && !t.Type.FullName.Contains(nameof(Vella.Events))); // avoid 2x the same type on an entity exception
+                        && !t.Type.FullName.Contains(nameof(Vella.Events)) && t.TypeIndex != chunkHeaderTypeIndex); 
 
                     _componentTypeInfos = new NativeArray<TypeManager.TypeInfo>(types.ToArray(), Allocator.Persistent);
                 }
 
-                _random = new Random();
+                _random = new UnityEngine.Random();
 
                 IsCreated = true;
             }
@@ -205,7 +212,23 @@ namespace Performance
             .Run();
         }
 
+        [Test, Performance, TestCategory(TestCategory.Performance)]
+        public void CachedChunkDebug([Values(1000)] int eventsPerarchetype, [Values(1)] int archetypeCount)
+        {
+            var system = Manager.World.GetOrCreateSystem<LoadTestSystem>();
+            system.EventsPerArchetype = eventsPerarchetype;
+            system.ArchetypeCount = archetypeCount;
 
+            Measure.Method(() =>
+            {
+                system.Update();
+                EventSystem.Update();
+            })
+            .MeasurementCount(1)
+            .WarmupCount(0)
+            .IterationsPerMeasurement(3)
+            .Run();
+        }
 
 
         [Test, Performance, TestCategory(TestCategory.Performance)]

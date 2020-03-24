@@ -1,4 +1,5 @@
-﻿using Unity.Collections;
+﻿using System.Runtime.CompilerServices;
+using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 
 /// <summary>
@@ -17,6 +18,7 @@ public unsafe struct UnsafeNativeArray
 	public DisposeSentinel m_DisposeSentinel;
 	public Allocator m_AllocatorLabel;
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public NativeArray<T> AsNativeArray<T>() where T : struct
 	{
 		return UnsafeUtilityEx.AsRef<NativeArray<T>>(UnsafeUtility.AddressOf(ref this));

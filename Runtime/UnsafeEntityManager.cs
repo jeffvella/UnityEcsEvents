@@ -53,14 +53,63 @@ namespace Vella.Events
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void CreateEntity(EntityArchetype entityArchetype, void* destination, int entityCount, int startOffset = 0)
         {
-            StructuralChangeProxy.CreateEntity.Invoke(_componentDataStore, entityArchetype.GetArchetypePtr(), (Entity*)((byte*)destination + sizeof(Entity) * startOffset), entityCount);
+            StructuralChangeProxy.CreateEntity(_componentDataStore, entityArchetype.GetArchetypePtr(), (Entity*)((byte*)destination + sizeof(Entity) * startOffset), entityCount);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void CreateEntity(void* entityArchetypePtr, void* destination, int entityCount, int startOffset = 0)
         {
-            StructuralChangeProxy.CreateEntity.Invoke(_componentDataStore, entityArchetypePtr, (Entity*)((byte*)destination + sizeof(Entity) * startOffset), entityCount);
+            StructuralChangeProxy.CreateEntity(_componentDataStore, entityArchetypePtr, (Entity*)((byte*)destination + sizeof(Entity) * startOffset), entityCount);
         }
+
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void SetArchetype(EntityArchetype destinationArchetype, void* entities, int length)
+        {
+            var archetypePtr = destinationArchetype.GetArchetypePtr();
+            for (int i = 0; i < length; i++)
+            {
+                StructuralChangeProxy.MoveEntityArchetype(_componentDataStore, (Entity*)((byte*)entities + i * sizeof(Entity)), archetypePtr);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void AddComponentToChunks(ArchetypeChunk* chunks, int chunkCount, int typeIndex)
+        {
+            StructuralChangeProxy.AddComponentChunks(_componentDataStore, chunks, chunkCount, typeIndex);
+        }
+
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void AddComponentToChunks(void* chunks, int chunkCount, int typeIndex)
+        {
+            StructuralChangeProxy.AddComponentChunks.Invoke(_componentDataStore, (ArchetypeChunk*)chunks, chunkCount, typeIndex);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void RemoveComponentFromChunks(ArchetypeChunk* chunks, int chunkCount, int typeIndex)
+        {
+            StructuralChangeProxy.RemoveComponentChunks(_componentDataStore, chunks, chunkCount, typeIndex);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void RemoveComponentFromChunks(void* chunks, int chunkCount, int typeIndex)
+        {
+            StructuralChangeProxy.RemoveComponentChunks(_componentDataStore, (ArchetypeChunk*)chunks, chunkCount, typeIndex);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void AddComponentEntitiesBatch(UnsafeList* batchInChunkList, int typeIndex)
+        {
+            StructuralChangeProxy.AddComponentEntitiesBatch.Invoke(_componentDataStore, batchInChunkList, typeIndex);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void RemoveComponentEntitiesBatch(UnsafeList* batchInChunkList, int typeIndex)
+        {
+            StructuralChangeProxy.RemoveComponentEntitiesBatch.Invoke(_componentDataStore, batchInChunkList, typeIndex);
+        }
+
     }
 
 

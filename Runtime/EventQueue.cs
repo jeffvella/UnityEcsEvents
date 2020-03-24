@@ -207,9 +207,24 @@ namespace Vella.Events
             _componentData.GetBuffer(_threadIndex).Add(item, _componentSize);
         }
 
-        public void Enqueue(byte* ptr)
+        public void EnqueueComponent(byte* ptr)
         {
             _componentData.GetBuffer(_threadIndex).Add(ptr, _componentSize);
+        }
+
+        public void Enqueue<T>(T item) where T : unmanaged
+        {
+            _componentData.GetBuffer(_threadIndex).Add(&item, sizeof(T));
+        }
+
+        public void Enqueue<T>(byte* ptr) where T : unmanaged
+        {
+            _componentData.GetBuffer(_threadIndex).Add(ptr, sizeof(T));
+        }
+
+        public void Enqueue(byte* ptr, int length)
+        {
+            _componentData.GetBuffer(_threadIndex).Add(ptr, length);
         }
     }
 
