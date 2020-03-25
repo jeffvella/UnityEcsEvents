@@ -10,6 +10,7 @@ using Unity.Profiling;
 using System.Diagnostics;
 using Debug = UnityEngine.Debug;
 using System.Runtime.InteropServices;
+using System.Linq;
 
 namespace Vella.Events
 {
@@ -30,81 +31,91 @@ namespace Vella.Events
         public int GetValue() => value;
     }
 
+
+
     public unsafe class EntityEventSystem : SystemBase
     {
-        private UnsafeHashMap<int, int> _typeIndexToBatchMap;
-        private ComponentType _eventComponent;
-        private EntityQuery _allEventsQuery;
-        private EntityQuery _allDisabledEventsQuery;
-        private NativeList<EventArchetype> _batches;
-        private NativeList<EventArchetype> _buffer;
-        private UnsafeList<Entity> _entities;
-        private UnsafeNativeArray _entitySlicer;
-        private UnsafeList<ArchetypeChunk> _chunks;
-        private UnsafeNativeArray _chunkSlicer;
-        private UnsafeEntityManager _unsafeEntityManager;
-        private EntityArchetype _disabledArchetype;
-        private ArchetypeChunkComponentType<EntityEvent> _archetypeComponentTypeStub;
-        private int _batchCount;
-        private int _disabledTypeIndex;
-        private UnsafeNativeArray _batchArray;
+        private void* _dataPtr;
+
+        private ref EventSystemData _data => ref UnsafeUtilityEx.AsRef<EventSystemData>(_dataPtr);
+
+        public EntityQuery _allEventsQuery;
+
+        public EntityQuery _allDisabledEventsQuery;
+
+        /// <summary>
+        /// System fields are stored here so that they're pinned.
+        /// </summary>
+        public struct EventSystemData
+        {
+            public UnsafeHashMap<int, int> TypeIndexToBatchMap;
+            public ComponentType EventComponent;
+            public NativeList<EventArchetype> Batches;
+            public NativeList<EventArchetype> _buffer;
+            public UnsafeList<Entity> _entities;
+            public UnsafeNativeArray _entitySlicer;
+            public UnsafeList<ArchetypeChunk> _chunks;
+            public UnsafeNativeArray _chunkSlicer;
+            public UnsafeEntityManager _unsafeEntityManager;
+            public EntityArchetype _disabledArchetype;
+            public ArchetypeChunkComponentType<EntityEvent> _archetypeComponentTypeStub;
+            public int _batchCount;
+            public int _disabledTypeIndex;
+            public UnsafeNativeArray _batchArray;
+        }
 
         protected override void OnCreate()
         {
-            var typeCount = TypeManager.GetTypeCount();
-            _typeIndexToBatchMap = new UnsafeHashMap<int, int>(typeCount, Allocator.Persistent); // possible with 2-type key that this hits max capacity, can it grow?
 
-            _eventComponent = ComponentType.ReadOnly<EntityEvent>(); 
 
-            _allEventsQuery = EntityManager.CreateEntityQuery(_eventComponent);
+            EventSystemData data = default;
 
+            const int StartingBatchCount = 10;
+
+            data.TypeIndexToBatchMap = new UnsafeHashMap<int, int>(StartingBatchCount, Allocator.Persistent);
+            data.EventComponent = ComponentType.ReadOnly<EntityEvent>();
+
+            _allEventsQuery = EntityManager.CreateEntityQuery(data.EventComponent);
             _allDisabledEventsQuery = EntityManager.CreateEntityQuery(new EntityQueryDesc
             {
                 All = new[] {
-                    _eventComponent,
+                    data.EventComponent,
                     ComponentType.ReadOnly<Disabled>()
                 }, Options = EntityQueryOptions.IncludeDisabled
             });
 
-            _batches = new NativeList<EventArchetype>(typeCount, Allocator.Persistent); // doesn't need such high capacity, can grow.
+            data.Batches = new NativeList<EventArchetype>(StartingBatchCount, Allocator.Persistent);
+            data._buffer = new NativeList<EventArchetype>(StartingBatchCount, Allocator.Persistent);
+            data._entities = new UnsafeList<Entity>(StartingBatchCount, Allocator.Persistent);
+            data._entitySlicer = data._entities.ToUnsafeNativeArray();
+            data._chunks = new UnsafeList<ArchetypeChunk>(0, Allocator.Persistent);
+            data._chunkSlicer = data._entities.ToUnsafeNativeArray();
+            data._unsafeEntityManager = new UnsafeEntityManager(EntityManager);
+            data._disabledTypeIndex = TypeManager.GetTypeIndex<Disabled>();
+            data._batchArray = new UnsafeNativeArray();
+            data._batchArray.m_Safety = AtomicSafetyHandle.Create();
+            data._disabledArchetype = EntityManager.CreateArchetype(
+                ComponentType.ReadWrite<EntityEvent>(), 
+                ComponentType.ReadWrite<Disabled>());
 
-
-            _buffer = new NativeList<EventArchetype>(typeCount, Allocator.Persistent);
-            _entities = new UnsafeList<Entity>(typeCount, Allocator.Persistent);
-            _entitySlicer = _entities.ToUnsafeNativeArray();
-            _chunks = new UnsafeList<ArchetypeChunk>(0, Allocator.Persistent);
-            _chunkSlicer = _entities.ToUnsafeNativeArray();
-            _unsafeEntityManager = new UnsafeEntityManager(EntityManager);
-            _disabledArchetype = EntityManager.CreateArchetype(
-                ComponentType.ReadWrite<EntityEvent>(), ComponentType.ReadWrite<Disabled>());
-
-            _disabledTypeIndex = TypeManager.GetTypeIndex<Disabled>(); // move to field
-
-            _batchArray = new UnsafeNativeArray();
-            _batchArray.m_Safety = AtomicSafetyHandle.Create();
+            _dataPtr = UnsafeUtility.Malloc(UnsafeUtility.SizeOf<EventSystemData>(), 
+                UnsafeUtility.AlignOf<EventSystemData>(), Allocator.Persistent);
+            UnsafeUtility.CopyStructureToPtr(ref data, _dataPtr);
         }
 
         protected override void OnDestroy()
         {
-            //var batchIndices = _typeIndexToBatchMap.GetValueArray(Allocator.Temp);
-            for (int i = 0; i < _batches.Length; i++)
+            for (int i = 0; i < _data.Batches.Length; i++)
             {
-                _batches[i].Dispose();
+                _data.Batches[i].Dispose();
             }
-            _batches.Dispose();
+            _data.Batches.Dispose();
+            _data.TypeIndexToBatchMap.Dispose();
+            _data._buffer.Dispose();
+            _data._entities.Dispose();
+            _data._chunks.Dispose();
 
-            _typeIndexToBatchMap.Dispose();
-            //_batches.Dispose();
-            _buffer.Dispose();
-            _entities.Dispose();
-            _chunks.Dispose();
-        }
-
-        public struct Markers
-        {
-            public static readonly ProfilerMarker Setup = new ProfilerMarker($"{nameof(Setup)}");
-            public static readonly ProfilerMarker DestroyEntities = new ProfilerMarker($"{nameof(DestroyEntities)}");
-            public static readonly ProfilerMarker CreateEntities = new ProfilerMarker($"{nameof(CreateEntities)}");
+            UnsafeUtility.Free(_dataPtr, Allocator.Persistent);
         }
 
         public struct Test
@@ -119,87 +130,100 @@ namespace Vella.Events
             public int Count;
         }
 
+        public struct RemoveComponentFromChunksOperation
+        {
+            public unsafe void* Chunks;
+            public int Count;
+            public int TypeIndex;
+        }
+
+        public struct RemoveComponentEntitiesBatch
+        {
+            public UnsafeList* Batches;
+            public int TypeIndex;
+        }
+
+        public struct AddComponentEntitiesBatch
+        {
+            public UnsafeList* Batches;
+            public int TypeIndex;
+        }
+
+        public struct CreateChunksOperation
+        {
+            public EntityArchetype Archetype;
+            public void* ChunksOut;
+            public int EntityCount;
+        }
+
         protected override void OnUpdate()
         {
-
-            //var countSW = Stopwatch.StartNew();
-            // var mapCount = _typeIndexToBatchMap.Count();
-            //countSW.Stop();
-            //Debug.Log($"Count took {countSW.Elapsed.TotalMilliseconds:N4}");
-
-            if (_batchCount == 0)
+            if (_data._batchCount == 0)
                 return;
 
-            //var chunks = _allEventsQuery.CreateArchetypeChunkArray(Allocator.TempJob);
-            //_unsafeEntityManager.AddComponentToChunks(chunks.GetUnsafePtr(), chunks.Length, _disabledTypeIndex);
+            //var sw1 = Stopwatch.StartNew();
 
-            if (_chunks.Length > 0)
+            //var countSW = Stopwatch.StartNew();
+            if (_data._chunks.Length > 0)
             {
-                _unsafeEntityManager.AddComponentToChunks(_chunks.Ptr, _chunks.Length, _disabledTypeIndex);
-                _chunks.Clear();
+                for (int i = 0; i < _data._chunks.Length; i++)
+                {
+                    _data._chunks.Ptr[i].Invalid(); // triggers null reference exception rather than editor crash.
+                }
+
+                // todo, exclude batches that will need the events again from last frame, we can just set data on them without any other processing.
+                _data._unsafeEntityManager.AddComponentToChunks(_data._chunks.Ptr, _data._chunks.Length, _data._disabledTypeIndex);
+                _data._chunks.Clear();
             }
+            //countSW.Stop();
+            //Debug.Log($"Destroy took {countSW.Elapsed.TotalMilliseconds:N4}");
 
-            var handle = GCHandle.Alloc(_batches, GCHandleType.Pinned);
+            //var countSW1 = Stopwatch.StartNew();
 
-            for (int i = 0; i < _batches.Length; i++)
+            //var handle = GCHandle.Alloc(_data._batches, GCHandleType.Pinned);
+            //var handle2 = GCHandle.Alloc(_data._chunks, GCHandleType.Pinned);  
+
+            var ptr = _data.Batches.GetUnsafePtr();
+            for (int i = 0; i < _data.Batches.Length; i++)
             {
-                ref var batch = ref UnsafeUtilityEx.ArrayElementAsRef<EventArchetype>(_batches.GetUnsafePtr(), i);
-
-                var ptr1 = _batches.GetUnsafePtr();
-                // tmp
-                //batch.ComponentQueue.Clear();
-
-                //batch.ComponentQueue.Enqueue(66);
-
+                ref var batch = ref UnsafeUtilityEx.ArrayElementAsRef<EventArchetype>(ptr, i);
                 var requiredEntities = batch.ComponentQueue.ComponentCount();
                 if (requiredEntities == 0)
                     continue;
 
-                //var test = batch.ComponentQueue.GetBuffersForThread(-1);
-
                 var cap = batch.Archetype.ChunkCapacity;
-
                 var requiredFullChunks = requiredEntities / cap;
                 var requiredPartialChunks = requiredEntities % cap == 0 ? 0 : 1;
                 var requiredChunks = requiredFullChunks + requiredPartialChunks;
-
-                // cases:
-                // 1) no partials ->> a) re-use all chunks, b) re-use some chunks c) create all chunks.
-                // 2) some partials ->> a) all from reused partials b) some from re-used partials c) create new partials. 
-
-                //------------ // Full Chunk Conversion.
-
-                // todo:
-                // ** only crate chunks as a last resort, re-use existing/deactivated chunks.
-                // 1) re-use full chunks and create leftover chunks + partials.
-
                 var conversionFullChunks = math.min(requiredChunks, batch.FullChunks.Length);
-                _unsafeEntityManager.RemoveComponentFromChunks(batch.FullChunks.Ptr, conversionFullChunks, _disabledTypeIndex); // over-creating by a whole chunk.
 
-                // now some or all of batch.FullChunks need to go in the final output. 
+                // Create entities by removing the disabled component from otherwise identical full chunks.
+                _data._unsafeEntityManager.RemoveComponentFromChunks(batch.FullChunks.Ptr, conversionFullChunks, _data._disabledTypeIndex);
 
                 var remainingChunks = requiredChunks - conversionFullChunks;
-                var remainingEntities = requiredEntities - (conversionFullChunks * cap); // possible negative remaining entities. overflow amount. 
+                var remainingEntities = requiredEntities - (conversionFullChunks * cap); 
 
-                ///----------- // ** todo: on second cycle, when short full chunks, try consume partials before creating new chunks **
-
-                if (remainingEntities > 0) // Create new chunks.
+                if (remainingEntities > 0)
                 {
                     // Create entities from partial inactive chunks.
+                    // todo: evaluate if 1 partial only ever exists, if so, this can be simplified considerably.
                     if (batch.PartialChunks.Length > 0)
                     {
                         var conversionsRemaining = remainingEntities;
                         var entitiesConverted = 0;
                         var chunksDestroyed = 0;
                         var chunksCreated = 0;
-                        var batchInChunks = new NativeList<EntityBatchInChunkProxy>(1, Allocator.Temp);// chunk len capacity
+                        var batchInChunks = new NativeList<EntityBatchInChunkProxy>(batch.PartialChunks.Length, Allocator.Temp);
 
                         for (int j = batch.PartialChunks.Length - 1; j != -1; j--)
                         {
                             var partial = batch.PartialChunks.Ptr[j];
+
+                            //Debug.Assert(!partial.Invalid());
+
                             var amountToMove = math.min(partial.Count, conversionsRemaining);
 
-                            batchInChunks.Add(new EntityBatchInChunkProxy
+                            batchInChunks.Add(new EntityBatchInChunkProxy // todo: try to store these up for all _batches and do them once together at the end.
                             {
                                 Chunk = partial.GetChunkPtr(),
                                 Count = amountToMove,
@@ -217,21 +241,20 @@ namespace Vella.Events
                                 break;
                         }
 
-                        _unsafeEntityManager.RemoveComponentEntitiesBatch(batchInChunks.AsParallelWriter().ListData, _disabledTypeIndex);
+                        _data._unsafeEntityManager.RemoveComponentEntitiesBatch(batchInChunks.AsParallelWriter().ListData, _data._disabledTypeIndex);
                         remainingEntities -= entitiesConverted;
-                        var chunksConverted = entitiesConverted / cap + entitiesConverted % cap == 0 ? 0 : 1;
+                        var chunksConverted = entitiesConverted / cap + entitiesConverted % cap == 0 ? 0 : 1; 
                         remainingChunks -= chunksConverted;
 
                         batch.PartialChunks.Length -= chunksDestroyed;
 
                         var idx = batch.ActiveChunks.Length - chunksCreated;
-                        while (idx != batch.ActiveChunks.Length)
-                            batch.PartialChunks.Add(batch.ActiveChunks[idx++]);
+                        while (idx != batch.ActiveChunks.Length) // possibly because active chunks length = 1, so it started -2
+                            batch.PartialChunks.Add(batch.ActiveChunks[idx++]); // this is wrong, added 2x destroyed chunks to partials.
                     }
                   
-                    // can we know in advance if partials will fill remaining?
-
-                    if (remainingEntities > 0) // Create new chunks.
+                    // todo - evaluate if there is ever a case were partials need to be consumed (above) and then more chunks created (below) and simplify if false.
+                    if (remainingEntities > 0) // Create new chunks. 
                     {
 
                         // Create entities from partial inactive chunks.
@@ -255,7 +278,10 @@ namespace Vella.Events
                                 if (entitiesConverted >= remainingEntities)
                                     break;
                             }
-                            _unsafeEntityManager.RemoveComponentEntitiesBatch(batchInChunks.AsParallelWriter().ListData, _disabledTypeIndex);
+
+                            // todo: see if there's a way to do all of this building work in burst, store it out into an instruction collection
+                            // and then loop through the removes outside burst afterwards, or find a way to call the burst ptrs from within burst / FuncitonPointer<T>
+                            _data._unsafeEntityManager.RemoveComponentEntitiesBatch(batchInChunks.AsParallelWriter().ListData, _data._disabledTypeIndex);
                             remainingEntities -= entitiesConverted;
                             remainingChunks -= entitiesConverted / cap;
                             batch.PartialChunks.Length -= chunksDestroyed; // all full chunks list should be full -check
@@ -265,18 +291,11 @@ namespace Vella.Events
                         batch.FullChunks.Resize(batch.FullChunks.Length + remainingChunks);
 
                         // Configure a resuable/temporary NativeArray because CreateChunk requires a NativeArray...
-                        _batchArray.m_Buffer = (byte*)batch.FullChunks.Ptr + conversionFullChunks * sizeof(ArchetypeChunk);
-                        _batchArray.m_Length = remainingChunks;
+                        _data._batchArray.m_Buffer = (byte*)batch.FullChunks.Ptr + conversionFullChunks * sizeof(ArchetypeChunk);
+                        _data._batchArray.m_Length = remainingChunks;
 
                         // Copy new chunks directly into the batch.
-                        var ptr2 = _batches.GetUnsafePtr();
-                        Debug.Assert(ptr1 == ptr2);
-
-                        var tmp = _batches[i].Archetype;
-                        EntityManager.CreateChunk(tmp, _batchArray.AsNativeArray<ArchetypeChunk>(), remainingEntities);
-
-                        // Add this batch into the master list, so they can be efficiently cleared together on next frame.
-                        //_chunks.AddRange(batch.FullChunks);
+                        EntityManager.CreateChunk(_data.Batches[i].Archetype, _data._batchArray.AsNativeArray<ArchetypeChunk>(), remainingEntities);
 
                         if (requiredPartialChunks > 0)
                         {
@@ -290,74 +309,95 @@ namespace Vella.Events
                 }
                 else // Split an activated full chunk into two partials by removing some.
                 {
-                    // Always a partial? 
-                    // what happens if its exactly matched count to whats left in a chunk? 
-                    // does it always take from a full chunk?
-
                     var batchInChunks = new NativeList<EntityBatchInChunkProxy>(1, Allocator.Temp);
                     var partialIndex = conversionFullChunks - 1;
-                    var partialChunk = batch.FullChunks.Ptr[partialIndex];
+                    var activePartial = batch.FullChunks.Ptr[partialIndex];
+                    var inactiveCount = batch.InactiveChunks.Length;
 
                     batchInChunks.Add(new EntityBatchInChunkProxy
                     {
-                        Chunk = partialChunk.GetChunkPtr(),
+                        Chunk = activePartial.GetChunkPtr(),
                         Count = remainingEntities * -1,
                         StartIndex = remainingEntities + cap
                     });
 
-                    _unsafeEntityManager.AddComponentEntitiesBatch(batchInChunks.AsParallelWriter().ListData, _disabledTypeIndex);
+                    // todo, can this be processed for all batches later and the builder logic moved into burst?
+                    _data._unsafeEntityManager.AddComponentEntitiesBatch(batchInChunks.AsParallelWriter().ListData, _data._disabledTypeIndex);
 
                     if (requiredPartialChunks > 0)
                     {
                         // A split of full chunk makes two partials
-                        var inactivePartial = batch.InactiveChunks.Last();
-                        batch.PartialChunks.Add(inactivePartial);
-                        batch.PartialChunks.Add(partialChunk);
+
+                        //if (inactivePartial.Full) // a new is only created if there isnt viable space in an existing chunk.
+                        //{
+                        //    Debug.Log("Full after split - Added to existing chunk");
+                        //}
+                        //if (inactiveCount == batch.InactiveChunks.Length)
+                        //{
+                        //    Debug.Log("Same counts after split - Added to existing chunk");
+                        //}
+                        var inactivePartial = batch.InactiveChunks.Last(); // todo: ??? scan back through to find the last partial and/or check .Full
+                        if (inactiveCount == batch.InactiveChunks.Length) // a new chunk is not always created.
+                        {
+                            // this means that another chunk in the partial collection might be now full.
+                            batch.PartialChunks.Add(inactivePartial); // getting multiple chunks that are full in PartialChunks.
+                        }
 
                         // Bump the partial chunk off the end of the FullChunks list.
+                        batch.PartialChunks.Add(activePartial);
                         batch.FullChunks.RemoveAtSwapBack(partialIndex);
                     }
                 }
 
-                int chunkCount = batch.FullChunks.Length + batch.PartialChunks.Length;
-                _chunks.Resize(chunkCount);
-                var size1 = batch.FullChunks.Length * sizeof(ArchetypeChunk);
-                UnsafeUtility.MemCpy(_chunks.Ptr, batch.FullChunks.Ptr, size1);
-                UnsafeUtility.MemCpy((byte*)_chunks.Ptr + size1, batch.PartialChunks.Ptr, batch.PartialChunks.Length * sizeof(ArchetypeChunk));
+                // todo: is it necessary or useful to include all chunks, even if they're not used or can this just copy from the active view.
+                //var offset = _chunks.Length * sizeof(ArchetypeChunk);
+                //int chunkCount = _chunks.Length + batch.FullChunks.Length + batch.PartialChunks.Length;
+                //_chunks.Resize(chunkCount);
+                //var size1 = batch.FullChunks.Length * sizeof(ArchetypeChunk);
+                //var size2 = batch.PartialChunks.Length * sizeof(ArchetypeChunk);
+                //var startPtr = (byte*)_chunks.Ptr + offset;
+                //UnsafeUtility.MemCpy(startPtr, batch.FullChunks.Ptr, size1);
+                //UnsafeUtility.MemCpy(startPtr + size1, batch.PartialChunks.Ptr, size2);
+
+                //todo need a test to make sure multiple batches are dumping into the combined _chunks list.
+
+                foreach (var chunk in batch.ActiveChunks)
+                    chunk.Invalid();
+                foreach (var chunk in batch.InactiveChunks)
+                    chunk.Invalid();
+                //for (int x = 0; x < _chunks.Length; x++)
+                //   _chunks.Ptr[x].Invalid();
+
+                //var test = new NativeArray<ArchetypeChunk>(batch.ActiveChunks.Length, Allocator.Temp);
+                //batch.ActiveChunks.CopyTo(test.GetUnsafePtr());
+
+                batch.ActiveChunks.AddTo(ref _data._chunks);
 
                 //_chunks.AddRange(batch.FullChunks);// add active chunks from view isntead? some of these are unused.
-                //_chunks.AddRange(batch.PartialChunks); 
+                //_chunks.AddRange(batch.PartialChunks);
                 // or maybe split _chunks into two, re-used fulls can then avoid being switched archetype twice.
-
-
                 //batch.ComponentQueue.Clear();
             }
 
-            handle.Free();
+            //countSW1.Stop();
+            //Debug.Log($"Create Entities took {countSW1.Elapsed.TotalMilliseconds:N4}");
 
-            var batches = _batches;
+            //var countSW2 = Stopwatch.StartNew();
 
-            // Write component data.
-
+            var batches = _data.Batches;
             Job.WithCode(() =>
             {
-                //int chunkOffset = 0;
-
-                //ref var chunkSlicer = ref UnsafeUtilityEx.AsRef<UnsafeNativeArray>(chunkSlicerPtr);
-
                 for (int i = 0; i < batches.Length; i++)
                 {
                     ref var batch = ref UnsafeUtilityEx.ArrayElementAsRef<EventArchetype>(batches.GetUnsafePtr(), i);
 
                     var chunkCount = batch.Archetype.ChunkCount;
 
+                    // todo: avoid allocation?
                     var chunks = new NativeArray<ArchetypeChunk>(chunkCount, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
 
-                    //var chunks = chunkSlicer.Slice<ArchetypeChunk>(chunkOffset, chunkCount);
-
-                    //chunkOffset += chunkCount;
-
-                    batch.Archetype.CopyChunksTo(chunks); // can be removed/simplified? write directly into the view?
+                    // todo can be removed/simplified? write directly into the view?
+                    batch.Archetype.CopyChunksTo(chunks); 
 
                     MultiAppendBuffer.Reader components = batch.ComponentQueue.GetComponentReader();
 
@@ -399,6 +439,14 @@ namespace Vella.Events
                 }
 
             }).Run();
+
+
+
+            //sw1.Stop();
+            //Debug.Log($"Update took {sw1.Elapsed.TotalMilliseconds:N4}");
+
+            //countSW2.Stop();
+            //Debug.Log($"Set Data took {countSW1.Elapsed.TotalMilliseconds:N4}");
 
             //chunks.Dispose();
             //if (_chunks.Length != 0)
@@ -950,31 +998,31 @@ namespace Vella.Events
         private EventArchetype GetOrCreateBatch<T>() where T : struct, IComponentData
         {
             int key = TypeManager.GetTypeIndex<T>();
-            if (!_typeIndexToBatchMap.TryGetValue(key, out int index))
+            if (!_data.TypeIndexToBatchMap.TryGetValue(key, out int index))
             {
-                var batch = EventArchetype.Create<T>(EntityManager, _eventComponent, Allocator.Persistent);
-                index = _batchCount++;
-                _batches.ResizeUninitialized(_batchCount);
-                _batches[index] = batch;
-                _typeIndexToBatchMap[key] = index;
+                var batch = EventArchetype.Create<T>(EntityManager, _data.EventComponent, Allocator.Persistent);
+                index = _data._batchCount++;
+                _data.Batches.ResizeUninitialized(_data._batchCount);
+                _data.Batches[index] = batch;
+                _data.TypeIndexToBatchMap[key] = index;
                 return batch;
             }
-            return _batches[index];
+            return _data.Batches[index];
         }
 
         public EventArchetype GetOrCreateBatch(TypeManager.TypeInfo typeInfo)
         {
             int key = typeInfo.TypeIndex;
-            if (!_typeIndexToBatchMap.TryGetValue(key, out int index))
+            if (!_data.TypeIndexToBatchMap.TryGetValue(key, out int index))
             {
-                var batch = EventArchetype.Create(EntityManager, _eventComponent, typeInfo, Allocator.Persistent);
-                index = _batchCount++;
-                _batches.ResizeUninitialized(_batchCount);
-                _batches[index] = batch;
-                _typeIndexToBatchMap[key] = index;
+                var batch = EventArchetype.Create(EntityManager, _data.EventComponent, typeInfo, Allocator.Persistent);
+                index = _data._batchCount++;
+                _data.Batches.ResizeUninitialized(_data._batchCount);
+                _data.Batches[index] = batch;
+                _data.TypeIndexToBatchMap[key] = index;
                 return batch;
             }
-            return _batches[index];
+            return _data.Batches[index];
             //int key = typeInfo.TypeIndex;
             //if (!_typeIndexToBatchMap.TryGetValue(key, out EventArchetype batch))
             //{
@@ -998,16 +1046,16 @@ namespace Vella.Events
             //}
             //return batch;
             int key = GetHashCode<TComponent, TBufferData>();
-            if (!_typeIndexToBatchMap.TryGetValue(key, out int index))
+            if (!_data.TypeIndexToBatchMap.TryGetValue(key, out int index))
             {
-                var batch = EventArchetype.Create<TComponent, TBufferData>(EntityManager, _eventComponent, Allocator.Persistent);
-                index = _batchCount++;
-                _batches.ResizeUninitialized(_batchCount);
-                _batches[index] = batch;
-                _typeIndexToBatchMap[key] = index;
+                var batch = EventArchetype.Create<TComponent, TBufferData>(EntityManager, _data.EventComponent, Allocator.Persistent);
+                index = _data._batchCount++;
+                _data.Batches.ResizeUninitialized(_data._batchCount);
+                _data.Batches[index] = batch;
+                _data.TypeIndexToBatchMap[key] = index;
                 return batch;
             }
-            return _batches[index];
+            return _data.Batches[index];
         }
 
         private int GetHashCode<T1,T2>()

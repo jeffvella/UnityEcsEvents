@@ -193,11 +193,11 @@ namespace Performance
             system.EventsPerArchetype = eventsPerarchetype;
             system.ArchetypeCount = archetypeCount;
 
-            var markers = new[] {
-                nameof(EntityEventSystem.Markers.Setup),
-                nameof(EntityEventSystem.Markers.DestroyEntities),
-                nameof(EntityEventSystem.Markers.CreateEntities),
-            };
+            //var markers = new[] {
+            //    nameof(EntityEventSystem.Markers.Setup),
+            //    nameof(EntityEventSystem.Markers.DestroyEntities),
+            //    nameof(EntityEventSystem.Markers.CreateEntities),
+            //};
 
             Measure.Method(() =>
             {
@@ -213,7 +213,7 @@ namespace Performance
         }
 
         [Test, Performance, TestCategory(TestCategory.Performance)]
-        public void CachedChunkDebug([Values(1000)] int eventsPerarchetype, [Values(1)] int archetypeCount)
+        public void CachedChunkDebug([Values(1, 10, 100, 1000, 10000)] int eventsPerarchetype, [Values(1, 10, 25, 100)] int archetypeCount)
         {
             var system = Manager.World.GetOrCreateSystem<LoadTestSystem>();
             system.EventsPerArchetype = eventsPerarchetype;
@@ -224,9 +224,9 @@ namespace Performance
                 system.Update();
                 EventSystem.Update();
             })
-            .MeasurementCount(1)
-            .WarmupCount(0)
-            .IterationsPerMeasurement(3)
+            .MeasurementCount(5)
+            .WarmupCount(5)
+            .IterationsPerMeasurement(25)
             .Run();
         }
 
