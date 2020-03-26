@@ -13,16 +13,20 @@ using Vella.Tests.Attributes;
 using Vella.Tests.Data;
 using Vella.Tests.Fixtures;
 
-public class NewTests : EntityPerformanceTestFixture
+public class EntityManagerSequential : EntityPerformanceTestFixture
 {
-    [Test]
-    public void CachedChunkDebug()
+    [Test, Performance]
+    public void ExactChunkSizedAmounts()
     {
         var system = m_World.GetOrCreateSystem<EntityEventSystem>();
         var queue = system.GetQueue<EcsTestData>();
 
+        var measurement = 0;
+
         Measure.Method(() =>
         {
+            measurement++;
+
             for (int i = 0; i < 1000; i++)
             {
                 queue.Enqueue(new EcsTestData());
@@ -36,79 +40,109 @@ public class NewTests : EntityPerformanceTestFixture
         .Run();
     }
 
-    public class TestSystem1 : SystemBase
+    [Test]
+    public void DecreasingChunkSizedAmounts()
     {
-        protected override void OnUpdate()
+        var system = m_World.GetOrCreateSystem<EntityEventSystem>();
+        var queue = system.GetQueue<EcsTestData>();
+        var archetype = m_Manager.CreateArchetype(ComponentType.ReadWrite<EcsTestData>());
+        var query = m_Manager.CreateEntityQuery(ComponentType.ReadWrite<EcsTestData>());
+
+        var entitiesByMeasurement = new[]
         {
-            var cap = 1000;
-            var required = 10000;
-            var result = 0;
+            2000,
+            1000,
+            0,
+        };
 
-            Job.WithCode(() =>
+        for (int i = 0; i < entitiesByMeasurement.Length; i++)
+        {
+            var entities = entitiesByMeasurement[i];
+            for (int j = 0; j < entities; j++)
             {
-                for (int i = 0; i < 100000; i++)
-                {
-                    if (cap != required)
-                        result = 1 + (required / cap);
-                    else
-                        result = 1;
-                }
+                queue.Enqueue(new EcsTestData());
+            }
+            system.Update();
 
-            }).Run();
+            Assert.AreEqual(query.CalculateEntityCount(),entities);
+
+            var expectedChunks = entities / archetype.ChunkCapacity + ((entities % archetype.ChunkCapacity == 0) ? 0 : 1);
+            Assert.AreEqual(expectedChunks, query.CalculateChunkCount());
         }
     }
 
-    [Test, Performance]
-    public void DivideVsBranch1()
+    [Test]
+    public void IncreasingChunkSizedAmounts()
     {
+        var system = m_World.GetOrCreateSystem<EntityEventSystem>();
+        var queue = system.GetQueue<EcsTestData>();
+        var archetype = m_Manager.CreateArchetype(ComponentType.ReadWrite<EcsTestData>());
+        var query = m_Manager.CreateEntityQuery(ComponentType.ReadWrite<EcsTestData>());
 
-        var system = m_World.GetOrCreateSystem<TestSystem1>();
-        Measure.Method(() =>
+        var entitiesByMeasurement = new[]
         {
-            system.Update();
-        })
-        .MeasurementCount(25)
-        .WarmupCount(5)
-        .Definition("Branch", SampleUnit.Nanosecond)
-        .IterationsPerMeasurement(1)
-        .Run();
-    }
+            1000,
+            3000,
+            5000,
+        };
 
-    public class TestSystem2 : SystemBase
-    {
-        protected override void OnUpdate()
+        for (int i = 0; i < entitiesByMeasurement.Length; i++)
         {
-            var cap = 1000;
-            var required = 10000;
-            var result = 0;
-
-            Job.WithCode(() =>
+            var entities = entitiesByMeasurement[i];
+            for (int j = 0; j < entities; j++)
             {
-                for (int i = 0; i < 100000; i++)
-                {
-                    result = cap % required / cap + required / cap;
-                }
+                queue.Enqueue(new EcsTestData());
+            }
+            system.Update();
 
-            }).Run();
+            Assert.AreEqual(query.CalculateEntityCount(), entities);
+
+            var expectedChunks = entities / archetype.ChunkCapacity + ((entities % archetype.ChunkCapacity == 0) ? 0 : 1);
+            Assert.AreEqual(expectedChunks, query.CalculateChunkCount());
         }
     }
 
-    [Test, Performance]
-    public void DivideVsBranch2()
+    [Test]
+    public void IrregularAmounts()
     {
-        var system = m_World.GetOrCreateSystem<TestSystem2>();
-        Measure.Method(() =>
+        var system = m_World.GetOrCreateSystem<EntityEventSystem>();
+        var queue = system.GetQueue<EcsTestData>();
+        var archetype = m_Manager.CreateArchetype(ComponentType.ReadWrite<EcsTestData>());
+        var query = m_Manager.CreateEntityQuery(ComponentType.ReadWrite<EcsTestData>());
+
+        var entitiesByMeasurement = new[]
         {
+            1,
+            3,
+            7,
+            1000,
+            3,
+            2000,
+            1525,
+            5,
+            30,
+            0,
+            0,
+            5,
+            1,
+        };
+
+        for (int i = 0; i < entitiesByMeasurement.Length; i++)
+        {
+            var entities = entitiesByMeasurement[i];
+            for (int j = 0; j < entities; j++)
+            {
+                queue.Enqueue(new EcsTestData());
+            }
             system.Update();
-        })
-        .MeasurementCount(25)
-        .WarmupCount(5)
-        .Definition("Divide", SampleUnit.Nanosecond)
-        .IterationsPerMeasurement(1)
-        .Run();
 
+            Assert.AreEqual(entities, query.CalculateEntityCount());
 
+            var expectedChunks = entities / archetype.ChunkCapacity + ((entities % archetype.ChunkCapacity == 0) ? 0 : 1);
+            Assert.AreEqual(expectedChunks, query.CalculateChunkCount());
+        }
     }
+
 }
 
 

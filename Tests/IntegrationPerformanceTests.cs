@@ -213,7 +213,7 @@ namespace Performance
         }
 
         [Test, Performance, TestCategory(TestCategory.Performance)]
-        public void CachedChunkDebug([Values(1, 10, 100, 1000, 10000)] int eventsPerarchetype, [Values(1, 10, 25, 100)] int archetypeCount)
+        public void CachedChunkDebug([Values(1, 10, 100, 800, 10000)] int eventsPerarchetype, [Values(1, 10, 25, 100)] int archetypeCount)
         {
             var system = Manager.World.GetOrCreateSystem<LoadTestSystem>();
             system.EventsPerArchetype = eventsPerarchetype;

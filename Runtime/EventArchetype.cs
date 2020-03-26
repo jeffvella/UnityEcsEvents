@@ -34,8 +34,8 @@ namespace Vella.Events
         public int BufferLinkTypeIndex;
         private ArchetypeOffsetsFromChunk Offsets;
 
-        public UnsafeList<ArchetypeChunk> FullChunks;
-        public UnsafeList<ArchetypeChunk> PartialChunks;
+        //public UnsafeList<ArchetypeChunk> FullChunks;
+        //public UnsafeList<ArchetypeChunk> PartialChunks;
 
         //private ArchetypeChunk ScratchChunk;
         //private int ScratchChunkIndex;
@@ -50,9 +50,18 @@ namespace Vella.Events
         ////internal int RequiredChunks;
         //internal int FirstFullChunkIndex;
 
-        public ReadOnlyChunkCollection ActiveChunks;
-        public ReadOnlyChunkCollection InactiveChunks;
+        public ArchetypeChunkView ActiveChunks;
+        public ArchetypeChunkView InactiveChunks;
 
+        public UnsafeList Active;
+        public UnsafeList ActiveFull;
+        public UnsafePtrList ActivePartial;
+        public UnsafeList InactiveFull;
+        public UnsafePtrList InactivePartial;
+
+        internal bool RequiresActiveUpdate;
+        internal bool RequiresInactiveUpdate;
+        internal int Entities;
         const int cachedChunkCount = 5;
 
         public static EventArchetype Create<T>(EntityManager em, ComponentType metaComponent, Allocator allocator) where T : struct, IComponentData
@@ -92,14 +101,21 @@ namespace Vella.Events
                 Archetype = archetype,
                 InactiveArchetype = inactiveArchetype,
 
-                Offsets = CreateChunkSchema(em, archetype, metaComponent, componentType)
+                Offsets = GetChunkOffsets(em, archetype, metaComponent, componentType)
             };
 
-            batch.ActiveChunks = new ReadOnlyChunkCollection(batch.Archetype);
-            batch.InactiveChunks = new ReadOnlyChunkCollection(batch.InactiveArchetype);
-            batch.FullChunks = new UnsafeList<ArchetypeChunk>(cachedChunkCount, Allocator.Persistent);
-            batch.PartialChunks = new UnsafeList<ArchetypeChunk>(cachedChunkCount, Allocator.Persistent);
-            batch.CreateChunksFullOfDisabledEntities(em, cachedChunkCount);
+            batch.ActiveChunks = new ArchetypeChunkView(batch.Archetype);
+            batch.InactiveChunks = new ArchetypeChunkView(batch.InactiveArchetype);
+            //batch.FullChunks = new UnsafeList<ArchetypeChunk>(cachedChunkCount, Allocator.Persistent);
+            //batch.PartialChunks = new UnsafeList<ArchetypeChunk>(cachedChunkCount, Allocator.Persistent);
+            //batch.CreateChunksFullOfDisabledEntities(em, cachedChunkCount);
+
+            batch.Active = new UnsafeList(Allocator.Persistent);
+            batch.ActiveFull = new UnsafeList(Allocator.Persistent);
+            batch.ActivePartial = new UnsafePtrList(25, Allocator.Persistent);
+            batch.InactiveFull = new UnsafeList(Allocator.Persistent);
+            batch.InactivePartial = new UnsafePtrList(25, Allocator.Persistent);
+
 
             return batch;
         }
@@ -154,24 +170,30 @@ namespace Vella.Events
                 Archetype = archetype,
                 InactiveArchetype = inactiveArchetype,
 
-                Offsets = CreateChunkSchema(em, archetype, metaComponent, componentType, bufferType, bufferLinkType)
+                Offsets = GetChunkOffsets(em, archetype, metaComponent, componentType, bufferType, bufferLinkType)
             };
 
-            batch.ActiveChunks = new ReadOnlyChunkCollection(batch.Archetype);
-            batch.InactiveChunks = new ReadOnlyChunkCollection(batch.InactiveArchetype);
-            batch.FullChunks = new UnsafeList<ArchetypeChunk>(cachedChunkCount, Allocator.Persistent);
-            batch.PartialChunks = new UnsafeList<ArchetypeChunk>(cachedChunkCount, Allocator.Persistent);
-            batch.CreateChunksFullOfDisabledEntities(em, cachedChunkCount);
+            batch.ActiveChunks = new ArchetypeChunkView(batch.Archetype);
+            batch.InactiveChunks = new ArchetypeChunkView(batch.InactiveArchetype);
+            //batch.FullChunks = new UnsafeList<ArchetypeChunk>(cachedChunkCount, Allocator.Persistent);
+            //batch.PartialChunks = new UnsafeList<ArchetypeChunk>(cachedChunkCount, Allocator.Persistent);
+            //batch.CreateChunksFullOfDisabledEntities(em, cachedChunkCount);
+
+            batch.Active = new UnsafeList(Allocator.Persistent);
+            batch.ActiveFull = new UnsafeList(Allocator.Persistent);
+            batch.ActivePartial = new UnsafePtrList(25, Allocator.Persistent);
+            batch.InactiveFull = new UnsafeList(Allocator.Persistent);
+            batch.InactivePartial = new UnsafePtrList(25, Allocator.Persistent);
 
             return batch;
         }
 
-        private void CreateChunksFullOfDisabledEntities(EntityManager em, int chunkCount)
-        {
-            var newChunks = new NativeArray<ArchetypeChunk>(chunkCount, Allocator.Temp);
-            em.CreateChunk(InactiveArchetype, newChunks, InactiveArchetype.ChunkCapacity * chunkCount);
-            FullChunks.AddRange(new UnsafeList<ArchetypeChunk>((ArchetypeChunk*)newChunks.GetUnsafePtr(), newChunks.Length));
-        }
+        //private void CreateChunksFullOfDisabledEntities(EntityManager em, int chunkCount)
+        //{
+        //    var newChunks = new NativeArray<ArchetypeChunk>(chunkCount, Allocator.Temp);
+        //    em.CreateChunk(InactiveArchetype, newChunks, InactiveArchetype.ChunkCapacity * chunkCount);
+        //    FullChunks.AddRange(new UnsafeList<ArchetypeChunk>((ArchetypeChunk*)newChunks.GetUnsafePtr(), newChunks.Length));
+        //}
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public byte* GetComponentPointer(ArchetypeChunk chunk) => *(byte**)&chunk + Offsets.ComponentOffset;
@@ -186,7 +208,7 @@ namespace Vella.Events
         public byte* GetBufferLinkPointer(ArchetypeChunk chunk) => *(byte**)&chunk + Offsets.BufferLinkOffset;
 
 
-        private static ArchetypeOffsetsFromChunk CreateChunkSchema(EntityManager em, EntityArchetype archetype, ComponentType metaType, ComponentType componentType, ComponentType bufferType = default, ComponentType linkType = default)
+        private static ArchetypeOffsetsFromChunk GetChunkOffsets(EntityManager em, EntityArchetype archetype, ComponentType metaType, ComponentType componentType, ComponentType bufferType = default, ComponentType linkType = default)
         {
             ArchetypeOffsetsFromChunk schema = default;
 
@@ -226,8 +248,13 @@ namespace Vella.Events
         internal void Dispose()
         {
             ComponentQueue.Dispose();
-            FullChunks.Dispose();
-            PartialChunks.Dispose();
+            //FullChunks.Dispose();
+            //PartialChunks.Dispose();
+
+            InactiveFull.Dispose();
+            ActiveFull.Dispose();
+            InactivePartial.Dispose();
+            ActivePartial.Dispose();
         }
 
 
