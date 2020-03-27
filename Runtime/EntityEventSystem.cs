@@ -270,92 +270,92 @@ namespace Vella.Events
                     var requiredPartialChunks = fitsExactlyInChunkCapacity ? 0 : 1;
                     var requiredChunks = requiredFullChunks + requiredPartialChunks;
 
-                    if (fitsExactlyInChunkCapacity) // this fails because it doesn't destroy existing partial actives
-                    {
-                        batch.RequiresActiveUpdate = true;
-                        batch.RequiresInactiveUpdate = true;
+                    //if (fitsExactlyInChunkCapacity) // this fails because it doesn't destroy existing partial actives
+                    //{
+                    //    batch.RequiresActiveUpdate = true;
+                    //    batch.RequiresInactiveUpdate = true;
 
-                        // First, leave any already active chunks as they are.
-                        var excessChunks = requiredChunks - batch.ActiveFullArchetypeChunks.Length; //activefull
-                        if (excessChunks == 0)
-                        {
-                            //excess = 0 do nothing.
+                    //    // First, leave any already active chunks as they are.
+                    //    var excessChunks = requiredChunks - batch.ActiveFullArchetypeChunks.Length; //activefull
+                    //    if (excessChunks == 0)
+                    //    {
+                    //        //excess = 0 do nothing.
 
-                            return;
-                        }
-                        else if (excessChunks > 0)
-                        {
-                            // convert some inactive chunks, and/or create more.
+                    //        return;
+                    //    }
+                    //    else if (excessChunks > 0)
+                    //    {
+                    //        // convert some inactive chunks, and/or create more.
 
-                            if (batch.InactiveFullArchetypeChunks.Length == 0)
-                            {
-                                // No full inactive chunks exist to re-use, so create all fresh chunks.
+                    //        if (batch.InactiveFullArchetypeChunks.Length == 0)
+                    //        {
+                    //            // No full inactive chunks exist to re-use, so create all fresh chunks.
 
-                                data.CreateChunks.Add(new CreateChunksOp
-                                {
-                                    Archetype = batch.Archetype,
-                                    EntityCount = excessChunks * capacity,
-                                });
+                    //            data.CreateChunks.Add(new CreateChunksOp
+                    //            {
+                    //                Archetype = batch.Archetype,
+                    //                EntityCount = excessChunks * capacity,
+                    //            });
 
-                                batch.RequiresActiveUpdate = true;
-                            }
-                            else
-                            {
-                                // untested **
+                    //            batch.RequiresActiveUpdate = true;
+                    //        }
+                    //        else
+                    //        {
+                    //            // untested **
 
-                                // Some inactive chunks exist that can be re-used
+                    //            // Some inactive chunks exist that can be re-used
 
-                                var chunksToConvert = math.min(excessChunks, batch.InactiveChunks.Length); // e.g. need 30 but only have 5 to convert. or have 30 and only need 5.
-                                data.RemoveComponentFromChunks.Add(new RemoveComponentChunkOp
-                                {
-                                    Chunks = batch.InactiveFullArchetypeChunks.Ptr,
-                                    TypeIndex = data.DisabledTypeIndex,
-                                    Count = chunksToConvert,
-                                });
+                    //            var chunksToConvert = math.min(excessChunks, batch.InactiveChunks.Length); // e.g. need 30 but only have 5 to convert. or have 30 and only need 5.
+                    //            data.RemoveComponentFromChunks.Add(new RemoveComponentChunkOp
+                    //            {
+                    //                Chunks = batch.InactiveFullArchetypeChunks.Ptr,
+                    //                TypeIndex = data.DisabledTypeIndex,
+                    //                Count = chunksToConvert,
+                    //            });
 
-                                excessChunks -= chunksToConvert;
-                                if (excessChunks > 0)
-                                {
-                                    // Additional chunks are still needed, create new ones.
+                    //            excessChunks -= chunksToConvert;
+                    //            if (excessChunks > 0)
+                    //            {
+                    //                // Additional chunks are still needed, create new ones.
 
-                                    //var remainingEntities = requiredEntities - (conversionFullChunks * capacity);
-                                    data.CreateChunks.Add(new CreateChunksOp
-                                    {
-                                        Archetype = batch.Archetype,
-                                        EntityCount = excessChunks * capacity,
-                                    });
-                                }
+                    //                //var remainingEntities = requiredEntities - (conversionFullChunks * capacity);
+                    //                data.CreateChunks.Add(new CreateChunksOp
+                    //                {
+                    //                    Archetype = batch.Archetype,
+                    //                    EntityCount = excessChunks * capacity,
+                    //                });
+                    //            }
 
-                                batch.RequiresActiveUpdate = true;
-                                batch.RequiresInactiveUpdate = true;
-                            }
-                        }
-                        else
-                        {
-                            // destroy excess active chunks.
+                    //            batch.RequiresActiveUpdate = true;
+                    //            batch.RequiresInactiveUpdate = true;
+                    //        }
+                    //    }
+                    //    else
+                    //    {
+                    //        // destroy excess active chunks.
 
-                            data.AddComponentToChunks.Add(new AddComponentChunkOp
-                            {
-                                Chunks = batch.ActiveFullArchetypeChunks.Ptr,
-                                TypeIndex = data.DisabledTypeIndex,
-                                Count = excessChunks * -1
-                            });
+                    //        data.AddComponentToChunks.Add(new AddComponentChunkOp
+                    //        {
+                    //            Chunks = batch.ActiveFullArchetypeChunks.Ptr,
+                    //            TypeIndex = data.DisabledTypeIndex,
+                    //            Count = excessChunks * -1
+                    //        });
 
-                            // partial ptrs cat be given to chunks method >> must be ArchetypeChunk
-                            //data.AddComponentToChunks.Add(new AddComponentChunkOp 
-                            //{
-                            //    Chunks = batch.ActivePartialArchetypeChunkPtrs.Ptr,
-                            //    TypeIndex = data.DisabledTypeIndex,
-                            //    Count = batch.ActivePartialArchetypeChunkPtrs.Length
-                            //});
+                    //        // partial ptrs cat be given to chunks method >> must be ArchetypeChunk
+                    //        //data.AddComponentToChunks.Add(new AddComponentChunkOp 
+                    //        //{
+                    //        //    Chunks = batch.ActivePartialArchetypeChunkPtrs.Ptr,
+                    //        //    TypeIndex = data.DisabledTypeIndex,
+                    //        //    Count = batch.ActivePartialArchetypeChunkPtrs.Length
+                    //        //});
 
-                            // destroy partial active chunks here to
-                            batch.RequiresActiveUpdate = true;
-                            batch.RequiresInactiveUpdate = true;
-                        }
-                    }
-                    else //if (requiredChunks == 1)
-                    {
+                    //        // destroy partial active chunks here to
+                    //        batch.RequiresActiveUpdate = true;
+                    //        batch.RequiresInactiveUpdate = true;
+                    //    }
+                    //}
+                    //else //if (requiredChunks == 1)
+                    //{
   
 
                         // temp for now
@@ -505,7 +505,7 @@ namespace Vella.Events
                                 EntityCount = remainingEntities,
                             });
                         }
-                    }
+                    //}
                     //else if (batch.InactivePartialArchetypeChunkPtrs.Length > 0) // no actives to re-use
                     //{
                     //    // convert inactive partials up to what we need.
