@@ -62,10 +62,13 @@ namespace Vella.Events
             public int _batchCount;
             public int DisabledTypeIndex;
             public UnsafeNativeArray TempArray;
-            public UnsafeAppendBuffer Scratch;
+            public UnsafeAppendBuffer ChunkScratch;
+            public UnsafeAppendBuffer BatchScratch;
             public UnsafeList CreateChunks;
             public UnsafeList AddComponentToChunks;
             public UnsafeList RemoveComponentFromChunks;
+            internal UnsafeList AddComponentBatches;
+            internal UnsafeList RemoveComponentBatches;
         }
 
         protected override void OnCreate()
@@ -98,11 +101,15 @@ namespace Vella.Events
             data.DisabledTypeIndex = TypeManager.GetTypeIndex<Disabled>();
             data.TempArray = new UnsafeNativeArray();
             data.TempArray.m_Safety = AtomicSafetyHandle.Create();
-            data.Scratch = new UnsafeAppendBuffer(4096, 4, Allocator.Persistent);
+
+            data.ChunkScratch = new UnsafeAppendBuffer(4096, 4, Allocator.Persistent);
+            data.BatchScratch = new UnsafeAppendBuffer(4096, 4, Allocator.Persistent);
 
             data.CreateChunks = new UnsafeList(Allocator.Persistent);
             data.AddComponentToChunks = new UnsafeList(Allocator.Persistent);
             data.RemoveComponentFromChunks = new UnsafeList(Allocator.Persistent);
+            data.AddComponentBatches = new UnsafeList(Allocator.Persistent);
+            data.RemoveComponentBatches = new UnsafeList(Allocator.Persistent);
 
             data.DisabledArchetype = EntityManager.CreateArchetype(
                 ComponentType.ReadWrite<EntityEvent>(), 
@@ -135,12 +142,12 @@ namespace Vella.Events
 
         public struct EntityBatchInChunkProxy
         {
-            public unsafe void* Chunk;
+            public unsafe void* ChunkPtr;
             public int StartIndex;
             public int Count;
         }
 
-        public struct RemoveComponentFromChunksOperation
+        public struct RemoveComponentChunkOp
         {
             public unsafe void* Chunks;
             public int Count;
@@ -154,15 +161,15 @@ namespace Vella.Events
             public int TypeIndex;
         }
 
-        public struct RemoveComponentEntitiesBatch
+        public struct RemoveComponentBatchOp
         {
-            public UnsafeList* Batches;
+            public UnsafeList* EntityBatches;
             public int TypeIndex;
         }
 
-        public struct AddComponentEntitiesBatch
+        public struct AddComponentBatchOp
         {
-            public UnsafeList* Batches;
+            public UnsafeList* EntityBatches;
             public int TypeIndex;
         }
 
@@ -218,6 +225,10 @@ namespace Vella.Events
 
                 data.CreateChunks.Clear();
                 data.AddComponentToChunks.Clear();
+                data.RemoveComponentFromChunks.Clear();
+                data.AddComponentBatches.Clear();
+                data.RemoveComponentBatches.Clear();
+                data.BatchScratch.Reset();
 
                 for (int i = 0; i < data.Batches.Length; i++)
                 {
@@ -226,42 +237,46 @@ namespace Vella.Events
                     ref var batch = ref UnsafeUtilityEx.ArrayElementAsRef<EventArchetype>(batches.GetUnsafePtr(), i);
 
                     var requiredEntities = data.Batches[i].ComponentQueue.ComponentCount();
-                    batch.Entities = requiredEntities;
+
                     batch.RequiresActiveUpdate = false;
+                    batch.RequiresInactiveUpdate = false;
+
+                    var previousEntityCount = batch.EntityCount;
+                    if (previousEntityCount == requiredEntities)
+                    {
+                        return;
+                    }
+                    batch.EntityCount = requiredEntities;
 
                     if (requiredEntities == 0)
                     {
-                        // Inactivate all existing entities
-
+                        // Deactivate all
                         if (batch.ActiveChunks.Length != 0)
                         {
                             data.AddComponentToChunks.Add(new AddComponentChunkOp
                             {
-                                Chunks = batch.Active.Ptr,
+                                Chunks = batch.ActiveArchetypeChunks.Ptr,
                                 TypeIndex = data.DisabledTypeIndex,
-                                Count = batch.Active.Length
+                                Count = batch.ActiveArchetypeChunks.Length
                             });
-
                             batch.RequiresInactiveUpdate = true;
                         }
                         return;
                     }
-
-                    batch.RequiresInactiveUpdate = false;
 
                     var capacity = batch.Archetype.ChunkCapacity;
                     var requiredFullChunks = requiredEntities / capacity;
                     var fitsExactlyInChunkCapacity = requiredEntities % capacity == 0;
                     var requiredPartialChunks = fitsExactlyInChunkCapacity ? 0 : 1;
                     var requiredChunks = requiredFullChunks + requiredPartialChunks;
-                    //var conversionFullChunks = math.min(requiredChunks, batch.FullChunks.Length);
 
-                    if (fitsExactlyInChunkCapacity)
+                    if (fitsExactlyInChunkCapacity) // this fails because it doesn't destroy existing partial actives
                     {
-                        // First, leave any already active chunks.
+                        batch.RequiresActiveUpdate = true;
+                        batch.RequiresInactiveUpdate = true;
 
-                        // need 30 chunks, 10 are active, 
-                        var excessChunks = requiredChunks - batch.ActiveFull.Length; //activefull
+                        // First, leave any already active chunks as they are.
+                        var excessChunks = requiredChunks - batch.ActiveFullArchetypeChunks.Length; //activefull
                         if (excessChunks == 0)
                         {
                             //excess = 0 do nothing.
@@ -272,7 +287,7 @@ namespace Vella.Events
                         {
                             // convert some inactive chunks, and/or create more.
 
-                            if (batch.InactiveFull.Length == 0)
+                            if (batch.InactiveFullArchetypeChunks.Length == 0)
                             {
                                 // No full inactive chunks exist to re-use, so create all fresh chunks.
 
@@ -286,12 +301,14 @@ namespace Vella.Events
                             }
                             else
                             {
+                                // untested **
+
                                 // Some inactive chunks exist that can be re-used
 
                                 var chunksToConvert = math.min(excessChunks, batch.InactiveChunks.Length); // e.g. need 30 but only have 5 to convert. or have 30 and only need 5.
-                                data.CreateChunks.Add(new RemoveComponentFromChunksOperation
+                                data.RemoveComponentFromChunks.Add(new RemoveComponentChunkOp
                                 {
-                                    Chunks = batch.InactiveFull.Ptr,
+                                    Chunks = batch.InactiveFullArchetypeChunks.Ptr,
                                     TypeIndex = data.DisabledTypeIndex,
                                     Count = chunksToConvert,
                                 });
@@ -315,38 +332,287 @@ namespace Vella.Events
                         }
                         else
                         {
-                            // destroy some active chunks.
+                            // destroy excess active chunks.
 
                             data.AddComponentToChunks.Add(new AddComponentChunkOp
                             {
-                                Chunks = batch.ActiveFull.Ptr,
+                                Chunks = batch.ActiveFullArchetypeChunks.Ptr,
                                 TypeIndex = data.DisabledTypeIndex,
                                 Count = excessChunks * -1
                             });
 
+                            // partial ptrs cat be given to chunks method >> must be ArchetypeChunk
+                            //data.AddComponentToChunks.Add(new AddComponentChunkOp 
+                            //{
+                            //    Chunks = batch.ActivePartialArchetypeChunkPtrs.Ptr,
+                            //    TypeIndex = data.DisabledTypeIndex,
+                            //    Count = batch.ActivePartialArchetypeChunkPtrs.Length
+                            //});
+
+                            // destroy partial active chunks here to
                             batch.RequiresActiveUpdate = true;
                             batch.RequiresInactiveUpdate = true;
                         }
                     }
-                    else if (requiredChunks == 1)
+                    else //if (requiredChunks == 1)
                     {
-                        // produce exactly 1 partial chunk
+  
 
+                        // temp for now
+                        batch.RequiresActiveUpdate = true;
+                        batch.RequiresInactiveUpdate = true;
 
+                        var remainingEntities = requiredEntities;
+                        var remainingInactiveFulls = batch.InactiveFullArchetypeChunks.Length;
 
+                        // -------------  Handle Full Chunks.
+
+                        if (requiredFullChunks > 0) // at least one full must be created. // check any active/inactive full to bypass?
+                        {
+                            var remainingFullChunks = requiredFullChunks;
+
+                            // Keep Active Fulls
+                            if (batch.ActiveFullArchetypeChunks.Length != 0)
+                            {
+                                var kept = math.min(remainingFullChunks, batch.ActiveFullArchetypeChunks.Length);
+                                remainingFullChunks -= kept;
+
+                                var excessActiveChunks = batch.ActiveFullArchetypeChunks.Length - kept;
+                                if (excessActiveChunks != 0)
+                                {
+                                    // Deactivate excess full active chunks
+                                    data.AddComponentToChunks.Add(new AddComponentChunkOp
+                                    {
+                                        Chunks = batch.ActiveFullArchetypeChunks.Ptr,
+                                        Count = excessActiveChunks,
+                                        TypeIndex = data.DisabledTypeIndex,
+                                    });
+                                }
+                            }
+
+                            if (batch.ActivePartialArchetypeChunk.Length != 0)
+                            {
+                                // Deactivate active partials
+                                data.AddComponentToChunks.Add(new AddComponentChunkOp
+                                {
+                                    Chunks = batch.ActivePartialArchetypeChunk.Ptr,
+                                    Count = batch.ActivePartialArchetypeChunk.Length,
+                                    TypeIndex = data.DisabledTypeIndex,
+                                });
+                            }
+
+                            // Convert Inactive Fulls
+                            if (remainingFullChunks > 0 && remainingInactiveFulls != 0) // used count for later
+                            {
+                                var conversionCount = math.min(remainingFullChunks, batch.InactiveFullArchetypeChunks.Length); // fulls only
+                                data.RemoveComponentFromChunks.Add(new RemoveComponentChunkOp
+                                {
+                                    Chunks = batch.InactiveFullArchetypeChunks.Ptr,
+                                    TypeIndex = data.DisabledTypeIndex,
+                                    Count = conversionCount,
+                                });
+                                remainingInactiveFulls -= conversionCount;
+                                remainingFullChunks -= conversionCount;
+                            }
+
+                            remainingEntities -= (requiredFullChunks - remainingFullChunks) * capacity;
+                        }
+                        else
+                        {
+                            // Deactivate all active chunks
+                            data.AddComponentToChunks.Add(new AddComponentChunkOp
+                            {
+                                Chunks = batch.ActiveArchetypeChunks.Ptr,
+                                Count = batch.ActiveArchetypeChunks.Length,
+                                TypeIndex = data.DisabledTypeIndex,
+                            });
+                        }
+
+                        // -------------  Handle Partial Chunks.
+
+                        if (remainingEntities > 0 && batch.InactiveChunks.Length != 0) // if there are some inactives to convert
+                        {
+                            // pull from inactives (partials firs then fulls)
+
+                            // ---
+                            NativeList<EntityBatchInChunkProxy> batchInChunks = new NativeList<EntityBatchInChunkProxy>(Allocator.Temp);
+
+                            // Create actives from 1-n inactive partials
+
+                            if (batch.InactivePartialArchetypeChunk.Length != 0) // create full chunk sized pieces out before this
+                            {
+                                //remainingEntities = requiredEntities;
+                                for (int j = 0; j < batch.InactivePartialArchetypeChunk.Length; j++)
+                                {
+                                    var archetypeChunkPtr = ((ArchetypeChunk*)batch.InactivePartialArchetypeChunk.Ptr)[j];
+                                    var amountToMove = math.min(archetypeChunkPtr.Count, remainingEntities);
+                                    var entityBatch = new EntityBatchInChunkProxy
+                                    {
+                                        ChunkPtr = archetypeChunkPtr.GetChunkPtr(),
+                                        Count = amountToMove,
+                                        StartIndex = 0,
+                                    };
+                                    batchInChunks.Add(entityBatch);
+                                    remainingEntities -= amountToMove;
+                                    if (remainingEntities == 0)
+                                        break;
+                                }
+
+                                data.RemoveComponentBatches.Add(new RemoveComponentBatchOp
+                                {
+                                    EntityBatches = batchInChunks.AsParallelWriter().ListData,
+                                    TypeIndex = data.DisabledTypeIndex,
+                                });
+                            }
+
+                            if (remainingEntities > 0 && remainingInactiveFulls != 0) 
+                            {
+                                // Create actives from 1-n inactive fulls
+
+                                batchInChunks.Clear();
+
+                                //remainingEntities = requiredEntities;// remove
+                                //for (int j = 0; j < batch.InactiveFullArchetypeChunks.Length; j++) // potentially using an inactive full that is already queued for full chunk conversion 
+                                for (int j = remainingInactiveFulls - 1; j == -1; j--)
+                                {
+                                    var archetypeChunk = ((ArchetypeChunk*)batch.InactiveFullArchetypeChunks.Ptr)[j];
+                                    var amountToMove = math.min(archetypeChunk.Count, remainingEntities);
+                                    var entityBatch = new EntityBatchInChunkProxy
+                                    {
+                                        ChunkPtr = archetypeChunk.GetChunkPtr(),
+                                        Count = amountToMove,
+                                        StartIndex = 0,
+                                    };
+                                    batchInChunks.Add(entityBatch);
+                                    remainingEntities -= amountToMove;
+                                    if (remainingEntities == 0)
+                                        break;
+                                }
+
+                                data.RemoveComponentBatches.Add(new RemoveComponentBatchOp
+                                {
+                                    EntityBatches = batchInChunks.AsParallelWriter().ListData,
+                                    TypeIndex = data.DisabledTypeIndex,
+                                });
+                            }
+                        }
+
+                        if (remainingEntities != 0) // todo: currently not coping from active partials to avoid create.
+                        {
+                            data.CreateChunks.Add(new CreateChunksOp
+                            {
+                                Archetype = batch.Archetype,
+                                EntityCount = remainingEntities,
+                            });
+                        }
                     }
-                    else
-                    {
-                        //// produce at least 1 full chunk + at least 1 partial chunk.
-                        //data.CreateChunkOperations.Add(new CreateChunksOperation
-                        //{
-                        //    Archetype = batch.Archetype,
-                        //    EntityCount = requiredEntities,
-                        //});
+                    //else if (batch.InactivePartialArchetypeChunkPtrs.Length > 0) // no actives to re-use
+                    //{
+                    //    // convert inactive partials up to what we need.
 
-                        //batch.RequiresActiveUpdate = true;
+                    //    ref var inputPtrs = ref batch.InactivePartialArchetypeChunkPtrs;
+                    //    ref var outputOps = ref data.RemoveComponentBatches;
 
-                    }
+                    //    var len = inputPtrs.Length;
+                    //    var batchInChunks = new NativeList<EntityBatchInChunkProxy>(len, Allocator.Temp);
+
+                    //    var remaining = requiredEntities;
+                    //    for (int j = 0; j < len; j++) // consume inactive partial chunks until the required amount have been moved.
+                    //    {
+                    //        var archetypeChunkPtr = (ArchetypeChunk*)inputPtrs.Ptr[j];
+                    //        var amountToMove = math.min(archetypeChunkPtr->Count, remaining);
+                    //        var entityBatch = new EntityBatchInChunkProxy
+                    //        {
+                    //            ChunkPtr = archetypeChunkPtr->GetChunkPtr(),
+                    //            Count = amountToMove,
+                    //            StartIndex = 0,
+                    //        };
+                    //        batchInChunks.Add(entityBatch);
+                    //        remaining -= amountToMove;
+                    //        if (remaining == 0)
+                    //            break;
+                    //    }
+
+                    //    outputOps.Add(new RemoveComponentBatchOp
+                    //    {
+                    //        EntityBatches = batchInChunks.AsParallelWriter().ListData,
+                    //        TypeIndex = data.DisabledTypeIndex,
+                    //    });
+
+                    //    if (remaining > 0)
+                    //    {
+                    //        data.CreateChunks.Add(new CreateChunksOp
+                    //        {
+                    //            Archetype = batch.Archetype,
+                    //            EntityCount = remaining,
+                    //        });
+                    //    }
+                    //}
+                    //else // No active or inactive partials
+                    //{
+                    //    if (batch.ActiveFullArchetypeChunks.Length > 0)
+                    //    {
+                    //        // split an active full chunk.
+                    //    }
+                    //    // >> try to pull from an inactive full chunk
+                    //    else if (batch.InactiveFullArchetypeChunks.Length > 0)
+                    //    {
+                    //        // consume from an inactive full
+                    //    }
+                    //    else
+                    //    {
+
+                    //    }
+
+                    //    if (remaining > 0)
+                    //    {
+
+                    //    }
+
+                    //    if (batch.ActiveFullArchetypeChunks.Length > 0) // take active fulls out of the picture.
+                    //    {
+                    //        // Remove Active Fulls.
+                    //        data.AddComponentToChunks.Add(new AddComponentChunkOp
+                    //        {
+                    //            Chunks = batch.ActiveFullArchetypeChunks.Ptr,
+                    //            TypeIndex = data.DisabledTypeIndex,
+                    //            Count = batch.ActiveFullArchetypeChunks.Length
+                    //        });
+                    //    }
+
+                    //    // >> last resort, create new entities.
+
+                    //    data.CreateChunks.Add(new CreateChunksOp
+                    //    {
+                    //        Archetype = batch.Archetype,
+                    //        EntityCount = requiredEntities,
+                    //    });
+                    //}
+
+
+
+                    //else
+                    //{
+                    //    //// produce at least 1 full chunk + at least 1 partial chunk.
+                    //    //data.CreateChunkOperations.Add(new CreateChunksOperation
+                    //    //{
+                    //    //    Archetype = batch.Archetype,
+                    //    //    EntityCount = requiredEntities,
+                    //    //});
+
+                    //    //batch.RequiresActiveUpdate = true;
+
+                    //    // temp for now
+                    //    batch.RequiresActiveUpdate = true;
+                    //    batch.RequiresInactiveUpdate = true;
+
+                    //    data.CreateChunks.Add(new CreateChunksOp
+                    //    {
+                    //        Archetype = batch.Archetype,
+                    //        EntityCount = requiredEntities,
+                    //    });
+
+                    //}
                 }
 
             }).Run();
@@ -355,24 +621,52 @@ namespace Vella.Events
 
             var opsTimer = Stopwatch.StartNew();
 
-            for (int i = 0; i < _data.CreateChunks.Length; i++)
-            {
-                var op = ((CreateChunksOp*)_data.CreateChunks.Ptr)[i];
-
-                _data.Scratch.ResizeUninitialized(op.EntityCount * sizeof(Entity));
-                _data.TempArray.m_Buffer = _data.Scratch.Ptr;
-                _data.TempArray.m_Length = op.EntityCount;
-
-                // CreateEntity is faster than CreateChunk because the chunk code doesn't go through burst.
-                EntityManager.CreateEntity(op.Archetype, _data.TempArray.AsNativeArray<Entity>());
-            }
-
             for (int i = 0; i < _data.AddComponentToChunks.Length; i++)
             {
                 var op = ((AddComponentChunkOp*)_data.AddComponentToChunks.Ptr)[i];
 
                 _data.UnsafeEntityManager.AddComponentToChunks(op.Chunks, op.Count, op.TypeIndex);
             }
+
+            for (int i = 0; i < _data.RemoveComponentFromChunks.Length; i++)
+            {
+                var op = ((RemoveComponentChunkOp*)_data.RemoveComponentFromChunks.Ptr)[i];
+
+                _data.UnsafeEntityManager.RemoveComponentFromChunks(op.Chunks, op.Count, op.TypeIndex);
+            }
+
+            for (int i = 0; i < _data.CreateChunks.Length; i++)
+            {
+                var op = ((CreateChunksOp*)_data.CreateChunks.Ptr)[i];
+                _data.ChunkScratch.ResizeUninitialized(op.EntityCount * sizeof(Entity));
+                _data.TempArray.m_Buffer = _data.ChunkScratch.Ptr;
+                _data.TempArray.m_Length = op.EntityCount;
+
+                // CreateEntity is faster than CreateChunk because the chunk code doesn't go through burst.
+                EntityManager.CreateEntity(op.Archetype, _data.TempArray.AsNativeArray<Entity>());
+            }
+
+            for (int i = 0; i < _data.RemoveComponentBatches.Length; i++)
+            {
+                var op = ((RemoveComponentBatchOp*)_data.RemoveComponentBatches.Ptr)[i];
+
+                //for (int i = 0; i < op.EntityBatchInChunk->Length; i++)
+                //    ((ArchetypeChunk*)op.EntityBatchInChunk->Ptr)[0].Invalid();
+
+                _data.UnsafeEntityManager.RemoveComponentEntitiesBatch(op.EntityBatches, op.TypeIndex);
+            }
+
+            for (int i = 0; i < _data.AddComponentBatches.Length; i++)
+            {
+                var op = ((AddComponentBatchOp*)_data.AddComponentBatches.Ptr)[i];
+
+                //for (int i = 0; i < op.EntityBatchInChunk->Length; i++)
+                //    ((ArchetypeChunk*)op.EntityBatchInChunk->Ptr)[0].Invalid();
+
+                _data.UnsafeEntityManager.AddComponentEntitiesBatch(op.EntityBatches, op.TypeIndex);
+            }
+
+
 
             opsTimer.Stop();
 
@@ -384,64 +678,9 @@ namespace Vella.Events
 
                 for (int i = 0; i < data.Batches.Length; i++)
                 {
-                    ref var batch = ref UnsafeUtilityEx.ArrayElementAsRef<EventArchetype>(batches.GetUnsafePtr(), i);
+                    ref EventArchetype batch = ref UnsafeUtilityEx.ArrayElementAsRef<EventArchetype>(batches.GetUnsafePtr(), i);
 
-                    if (batch.Entities == 0) // still needs an op to convert them, but we dont need to scan because we know already
-                    {
-                        batch.ActiveFull.Clear();
-                        batch.ActivePartial.Clear();
-                        continue;
-                    }
-
-                    // if there are no active events for this archetype just nuke the whole batch and clear the active collections.
-
-                    if (batch.RequiresActiveUpdate)
-                    {
-                        batch.Active.Clear();
-                        batch.ActiveFull.Clear();
-                        batch.ActivePartial.Clear();
-
-                        ArchetypeChunk* chunkPtr;
-
-                        for (int x = 0; x < batch.ActiveChunks.Length; x++)
-                        {
-                            chunkPtr = batch.ActiveChunks.GetChunkPtr(x);
-                            if (chunkPtr->Full)
-                            {
-                                batch.ActiveFull.Add(*chunkPtr);
-                            }
-                            else
-                            {
-                                batch.ActivePartial.Add(chunkPtr);
-                            }
-                            batch.Active.Add(*chunkPtr);
-                        }
-                        batch.RequiresActiveUpdate = false;
-                    }
-
-                    if (batch.RequiresInactiveUpdate)
-                    {
-                        batch.InactiveFull.Clear();
-                        batch.InactivePartial.Clear();
-
-                        ArchetypeChunk* chunkPtr;
-
-                        for (int x = 0; x < batch.InactiveChunks.Length; x++)
-                        {
-                            chunkPtr = batch.InactiveChunks.GetChunkPtr(x);
-                            if (chunkPtr->Full)
-                            {
-                                batch.InactiveFull.Add(*chunkPtr);
-                            }
-                            else
-                            {
-                                batch.InactivePartial.Add(chunkPtr);
-                            }
-                        }
-                        batch.RequiresInactiveUpdate = false;
-                    }
-
-                    batch.ActiveChunks.AddTo(ref data.Chunks);
+                    batch.UpdateChunkCollections();
                 }
 
             }).Run();
@@ -450,8 +689,8 @@ namespace Vella.Events
 
             var setTimer = Stopwatch.StartNew();
 
-            if (_data.Chunks.Length == 0)
-                return;
+            //if (_data..Length == 0)
+            //    return;
 
             Job.WithCode(() =>
             {
@@ -512,6 +751,7 @@ namespace Vella.Events
 
             Debug.Log($"Prep={prepTimer.Elapsed.TotalMilliseconds:N4} Ops={opsTimer.Elapsed.TotalMilliseconds:N4} Scan={scanTimer.Elapsed.TotalMilliseconds:N4} Set={setTimer.Elapsed.TotalMilliseconds:N4}");
 
+            #region backsups
 
             ////var ptr = _data.Batches.GetUnsafePtr();
             ////for (int i = 0; i < _data.Batches.Length; i++)
@@ -1333,7 +1573,133 @@ namespace Vella.Events
 
             //setSW.Stop();
             //Debug.Log($"SetData took {setSW.Elapsed.TotalMilliseconds:N4}");
+
+            #endregion
         }
+
+        private static void ActivateEntities(ref UnsafeList outputOps, ref UnsafePtrList inputPtrs, int entityCount, int typeIndex)
+        {
+            var len = inputPtrs.Length;
+            var batchInChunks = new NativeList<EntityBatchInChunkProxy>(len, Allocator.Temp);
+
+            var remaining = entityCount;
+            for (int j = 0; j < len; j++) // consume inactive partial chunks until the required amount have been moved.
+            {
+                var archetypeChunkPtr = (ArchetypeChunk*)inputPtrs.Ptr[j];
+                var amountToMove = math.min(archetypeChunkPtr->Count, remaining);
+                var entityBatch = new EntityBatchInChunkProxy
+                {
+                    ChunkPtr = archetypeChunkPtr->GetChunkPtr(),
+                    Count = amountToMove,
+                    StartIndex = 0,
+                };
+                batchInChunks.Add(entityBatch);
+                remaining -= amountToMove;
+                if (remaining == 0)
+                    break;
+            }
+
+            outputOps.Add(new RemoveComponentBatchOp
+            {
+                EntityBatches = batchInChunks.AsParallelWriter().ListData,
+                TypeIndex = typeIndex,
+            });
+        }
+
+        //private static void DeactivateEntities(ref UnsafeList outputOps, ref UnsafePtrList archetypeChunks, int activesRequired, int typeIndex)
+        //{
+        //    var len = archetypeChunks.Length;
+        //    var batchInChunks = new NativeList<EntityBatchInChunkProxy>(len, Allocator.Temp);
+
+        //    // chunk of actives with 10
+        //    // need only 3 actives
+        //    // >> add batch from index 3, moving 7 actives.
+
+        //    //var batchInChunks = new NativeList<EntityBatchInChunkProxy>(1, Allocator.Temp);
+        //    //var partialIndex = conversionFullChunks - 1;
+        //    //var activePartial = batch.FullChunks.Ptr[partialIndex];
+        //    //var inactiveCount = batch.InactiveChunks.ChunkCount;
+
+        //    //batchInChunks.Add(new EntityBatchInChunkProxy
+        //    //{
+        //    //    Chunk = activePartial.GetChunkPtr(),
+        //    //    Count = remainingEntities * -1,
+        //    //    StartIndex = remainingEntities + cap
+        //    //});
+
+        //    var remaining = activesRequired;
+        //    for (int j = 0; j < len; j++)
+        //    {
+        //        var archetypeChunkPtr = (ArchetypeChunk*)archetypeChunks.Ptr[j];
+        //        var toMoveOut = archetypeChunkPtr->Count - remaining; 
+        //        if (toMoveOut > 0)
+        //        {
+        //            var entityBatch = new EntityBatchInChunkProxy
+        //            {
+        //                ChunkPtr = archetypeChunkPtr->GetChunkPtr(),
+        //                Count = toMoveOut,
+        //                StartIndex = archetypeChunkPtr->Count - toMoveOut,
+        //            };
+        //        }
+
+        //        //if (archetypeChunkPtr->Count)
+        //        //var amountToMove = math.min(archetypeChunkPtr->Count, remaining);
+
+        //        batchInChunks.Add(entityBatch);
+        //        remaining -= amountToMove;
+        //        if (remaining == 0)
+        //            break;
+        //    }
+
+        //    outputOps.Add(new AddComponentBatchOp
+        //    {
+        //        EntityBatches = batchInChunks.AsParallelWriter().ListData,
+        //        TypeIndex = typeIndex,
+        //    });
+        //}
+
+
+        //private static EventSystemData ConstructRemoveComponentBatch(ref EventSystemData data, ref EventArchetype batch, int requiredEntities)
+        //{
+        //    var len = batch.InactivePartialArchetypeChunkPtrs.Length;
+        //    var list = new NativeList<EntityBatchInChunkProxy>(len, Allocator.Temp);
+
+        //    //EntityBatchInChunkProxy* list = stackalloc EntityBatchInChunkProxy[len];
+
+        //    var remaining = requiredEntities;
+        //    for (int j = 0; j < len; j++)
+        //    {
+        //        var archetypeChunkPtr = (ArchetypeChunk*)batch.InactivePartialArchetypeChunkPtrs.Ptr[j];
+        //        var amountToMove = math.min(archetypeChunkPtr->Count, remaining);
+        //        var entityBatch = new EntityBatchInChunkProxy
+        //        {
+        //            ChunkPtr = archetypeChunkPtr->GetChunkPtr(),
+        //            Count = amountToMove,
+        //            StartIndex = 0,
+        //        };
+        //        list.Add(entityBatch);
+        //        remaining -= amountToMove;
+        //        if (remaining == 0)
+        //            break;
+        //    }
+
+        //    //var length = requiredEntities - remaining;
+        //    //var offset = data.BatchScratch.Length;
+        //    //data.BatchScratch.AddArray<EntityBatchInChunkProxy>(list, length);
+        //    //var arrTest = data.BatchScratch.AsReader().ReadNextArray<EntityBatchInChunkProxy>(out var len1);
+        //    //var batchPtr = data.BatchScratch.Ptr + offset + sizeof(int); // (+ array length prefix)
+        //    //var batchPtr = data.BatchScratch.AddUnsafeList(list, requiredEntities - remaining);
+        //    //var debug1 = UnsafeUtilityEx.AsRef<UnsafeList<EntityBatchInChunkProxy>>(batchPtr);
+
+        //    data.RemoveComponentBatches.Add(new RemoveComponentBatchOp
+        //    {
+        //        EntityBatches = list.AsParallelWriter().ListData,
+        //        TypeIndex = data.DisabledTypeIndex,
+        //    });
+        //    return data;
+        //}
+
+
 
         /// <summary>
         /// Add an event to the default EventQueue.
@@ -1377,18 +1743,36 @@ namespace Vella.Events
         /// <summary>
         /// Acquire a the shared queue for creating events within jobs.
         /// </summary>
-        public EventQueue<T> GetQueue<T>() where T : struct, IComponentData
+        public EventQueue<T> GetQueue<T>(int startingPoolSize = 0) where T : struct, IComponentData
         {
-            return GetOrCreateBatch<T>().ComponentQueue.Cast<EventQueue<T>>();
+            return GetOrCreateBatch<T>(startingPoolSize).Batch.ComponentQueue.Cast<EventQueue<T>>();
         }
+
+        /// <summary>
+        /// Initialize an event type with starting capacity (mostly just for debug/test purposes).
+        /// </summary>
+        /// <typeparam name="T">type of event</typeparam>
+        /// <param name="startingPoolSize">number of inactive entities to create</param>
+        /// <returns>true if the batch was created, false if it was already there and therefore not created</returns>
+        public bool InitializeEventType<T>(int startingPoolSize) where T : struct, IComponentData
+        {
+            return GetOrCreateBatch<T>(startingPoolSize).WasCreated;
+        }
+
+        //public EventQueue<T> InitializeBatch<T>(int startingPoolSize) where T : struct, IComponentData
+        //{
+        //    return GetOrCreateBatch<T>(startingPoolSize).ComponentQueue.Cast<EventQueue<T>>();
+        //}
 
         /// <summary>
         /// Acquire an untyped shared queue for creating events within jobs.
         /// </summary>
         public EventQueue GetQueue(TypeManager.TypeInfo typeInfo)
         {
-            return GetOrCreateBatch(typeInfo).ComponentQueue;
+            return GetOrCreateBatch(typeInfo).Batch.ComponentQueue;
         }
+
+
 
         /// <summary>
         /// Acquire a queue for creating events that have both a component and buffer on the same element.
@@ -1400,37 +1784,38 @@ namespace Vella.Events
             where TComponent : struct, IComponentData
             where TBufferData : unmanaged, IBufferElementData
         {
-            return GetOrCreateBatch<TComponent,TBufferData>().ComponentQueue.Cast<EventQueue<TComponent,TBufferData>>();
+            return GetOrCreateBatch<TComponent,TBufferData>().Batch.ComponentQueue.Cast<EventQueue<TComponent,TBufferData>>();
         }
 
-        private EventArchetype GetOrCreateBatch<T>() where T : struct, IComponentData
+        private (EventArchetype Batch, bool WasCreated) GetOrCreateBatch<T>(int startingPoolSize = 0) where T : struct, IComponentData
         {
             int key = TypeManager.GetTypeIndex<T>();
             if (!_data.TypeIndexToBatchMap.TryGetValue(key, out int index))
             {
-                var batch = EventArchetype.Create<T>(EntityManager, _data.EventComponent, Allocator.Persistent);
+                var batch = EventArchetype.Create<T>(EntityManager, _data.EventComponent, startingPoolSize, Allocator.Persistent);
                 index = _data._batchCount++;
                 _data.Batches.ResizeUninitialized(_data._batchCount);
                 _data.Batches[index] = batch;
                 _data.TypeIndexToBatchMap[key] = index;
-                return batch;
+                return (batch, true);
             }
-            return _data.Batches[index];
+            return (_data.Batches[index], false);
         }
 
-        public EventArchetype GetOrCreateBatch(TypeManager.TypeInfo typeInfo)
+        public (EventArchetype Batch, bool WasCreated) GetOrCreateBatch(TypeManager.TypeInfo typeInfo, int startingPoolSize = 0)
         {
             int key = typeInfo.TypeIndex;
             if (!_data.TypeIndexToBatchMap.TryGetValue(key, out int index))
             {
-                var batch = EventArchetype.Create(EntityManager, _data.EventComponent, typeInfo, Allocator.Persistent);
+                var batch = EventArchetype.Create(EntityManager, _data.EventComponent, startingPoolSize, typeInfo, Allocator.Persistent);
                 index = _data._batchCount++;
                 _data.Batches.ResizeUninitialized(_data._batchCount);
                 _data.Batches[index] = batch;
                 _data.TypeIndexToBatchMap[key] = index;
-                return batch;
+                return (batch, true);
             }
-            return _data.Batches[index];
+            return (_data.Batches[index], false);
+
             //int key = typeInfo.TypeIndex;
             //if (!_typeIndexToBatchMap.TryGetValue(key, out EventArchetype batch))
             //{
@@ -1441,7 +1826,7 @@ namespace Vella.Events
             //return batch;
         }
 
-        private EventArchetype GetOrCreateBatch<TComponent,TBufferData>()
+        private (EventArchetype Batch, bool WasCreated) GetOrCreateBatch<TComponent,TBufferData>(int startingPoolSize = 0)
             where TComponent : struct, IComponentData
             where TBufferData : unmanaged, IBufferElementData
         {
@@ -1456,14 +1841,14 @@ namespace Vella.Events
             int key = GetHashCode<TComponent, TBufferData>();
             if (!_data.TypeIndexToBatchMap.TryGetValue(key, out int index))
             {
-                var batch = EventArchetype.Create<TComponent, TBufferData>(EntityManager, _data.EventComponent, Allocator.Persistent);
+                var batch = EventArchetype.Create<TComponent, TBufferData>(EntityManager, _data.EventComponent, startingPoolSize, Allocator.Persistent);
                 index = _data._batchCount++;
                 _data.Batches.ResizeUninitialized(_data._batchCount);
                 _data.Batches[index] = batch;
                 _data.TypeIndexToBatchMap[key] = index;
-                return batch;
+                return (batch, true);
             }
-            return _data.Batches[index];
+            return (_data.Batches[index], false);
         }
 
         private int GetHashCode<T1,T2>()
@@ -1483,3 +1868,145 @@ namespace Vella.Events
     }
 
 }
+
+
+//var remainingChunks = requiredChunks - batch.ActiveFullArchetypeChunks.Length; 
+//if (remainingChunks == 0)
+//{
+//    //excess = 0 do nothing.
+//    return;
+//}
+//else if (remainingChunks > 0)
+//{
+//    // convert some inactive chunks, and/or create more.
+
+//    if (batch.InactiveFullArchetypeChunks.Length == 0)
+//    {
+//        // No full inactive chunks exist to re-use, so create all fresh chunks.
+
+//        data.CreateChunks.Add(new CreateChunksOp
+//        {
+//            Archetype = batch.Archetype,
+//            EntityCount = remainingChunks * capacity,
+//        });
+
+//        batch.RequiresActiveUpdate = true;
+//    }
+//    else
+//    {
+//        // untested **
+
+//        // Some inactive chunks exist that can be re-used
+
+//        var chunksToConvert = math.min(remainingChunks, batch.InactiveChunks.Length); // e.g. need 30 but only have 5 to convert. or have 30 and only need 5.
+//        data.RemoveComponentFromChunks.Add(new RemoveComponentChunkOp
+//        {
+//            Chunks = batch.InactiveFullArchetypeChunks.Ptr,
+//            TypeIndex = data.DisabledTypeIndex,
+//            Count = chunksToConvert,
+//        });
+
+//        remainingChunks -= chunksToConvert;
+//        if (remainingChunks > 0)
+//        {
+//            // Additional chunks are still needed, create new ones.
+
+//            //var remainingEntities = requiredEntities - (conversionFullChunks * capacity);
+//            data.CreateChunks.Add(new CreateChunksOp
+//            {
+//                Archetype = batch.Archetype,
+//                EntityCount = remainingChunks * capacity,
+//            });
+//        }
+
+//        batch.RequiresActiveUpdate = true;
+//        batch.RequiresInactiveUpdate = true;
+//    }
+//}
+//else
+//{
+//    // destroy excess active chunks.
+//    data.AddComponentToChunks.Add(new AddComponentChunkOp
+//    {
+//        Chunks = batch.ActiveFullArchetypeChunks.Ptr,
+//        TypeIndex = data.DisabledTypeIndex,
+//        Count = remainingChunks * -1
+//    });
+
+//    batch.RequiresActiveUpdate = true;
+//    batch.RequiresInactiveUpdate = true;
+//}
+
+//if ()
+//{
+//    data.AddComponentToChunks.Add(new AddComponentChunkOp
+//    {
+//        Chunks = batch.ActiveFull.Ptr,
+//        TypeIndex = data.DisabledTypeIndex,
+//        Count = excessChunks * -1
+//    });
+//}
+
+
+//if (batch.ActivePartial.Length > 0)
+//{
+//    // deactivate all
+
+//    var excessChunks = batch.ActiveChunks.Length - requiredChunks;
+//    if (excessChunks == 0)
+//    {
+//        //excess = 0 do nothing.
+
+//        return;
+//    }
+
+//}
+
+// >> convert all partials until there are none left
+// >> 
+
+
+//if (batch.ActiveChunks.Length > 1)
+//if (batch.ActivePartialArchetypeChunkPtrs.Length > 0) // we only need 1 partial or active chunk.
+//{
+//    // destroy some actives.
+//}
+
+// Convert from partials first.
+
+//if (batch.ActivePartialArchetypeChunkPtrs.Length == 1)
+//{
+//    // There is already an active chunk. try to keep it as-is or split it.
+
+//    var archetypeChunkPtr = (ArchetypeChunk*)batch.ActivePartialArchetypeChunkPtrs.Ptr[0];
+//    if (archetypeChunkPtr->Count == requiredEntities)
+//    {
+//        return;
+//    }
+//    else
+//    {
+//        // remember, single chunk
+//        // Split off the excess.
+
+//        var batchInChunks = new NativeList<EntityBatchInChunkProxy>(1, Allocator.Temp);
+//        var amountToMove = archetypeChunkPtr->Count - requiredEntities; // since its 1 chunk this can't be negative.
+//        var entityBatch = new EntityBatchInChunkProxy
+//        {
+//            ChunkPtr = archetypeChunkPtr->GetChunkPtr(),
+//            Count = amountToMove,
+//            StartIndex = requiredEntities,
+//        };
+//        batchInChunks.Add(entityBatch);
+//        data.AddComponentBatches.Add(new AddComponentBatchOp
+//        {
+//            EntityBatches = batchInChunks.AsParallelWriter().ListData,
+//            TypeIndex = data.DisabledTypeIndex,
+//        });
+//    }
+//}
+//else if (batch.ActivePartialArchetypeChunkPtrs.Length > 1)
+//{
+//    // keep active partials up to x and disable the rest.
+
+
+//}

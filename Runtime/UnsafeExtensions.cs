@@ -4,11 +4,82 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
+using System;
 
 namespace Vella.Events
 {
     public unsafe static class UnsafeExtensions
     {
+        public static T* Add<T>(this UnsafeAppendBuffer buffer, T* array, int length) where T : unmanaged
+        {
+            var sizeBytes = length * sizeof(T);
+            buffer.SetCapacity(buffer.Length + sizeBytes);
+            var startPtr = buffer.Ptr + buffer.Length;
+            UnsafeUtility.MemCpy(startPtr, array, sizeBytes);
+            buffer.Length += sizeBytes;
+            return (T*)startPtr;
+        }
+
+        public static UnsafeList* AddUnsafeList<T>(this UnsafeAppendBuffer buffer, T* array, int length) where T : unmanaged
+        {
+            //var dstStartLengthBytes = buffer.Length;
+            //var srcLengthBytes = length * sizeof(T);
+            //buffer.ResizeUninitialized(dstStartLengthBytes + sizeof(UnsafeList) + srcLengthBytes);
+            //var arrStartPtr = buffer.Ptr + dstStartLengthBytes + sizeof(UnsafeList);
+            //buffer.Add(new UnsafeList(arrStartPtr, srcLengthBytes));
+            //buffer.Add(array, srcLengthBytes);
+            //var resultPtr = (UnsafeList*)buffer.Ptr + dstStartLengthBytes;
+            //var resultDebug = UnsafeUtilityEx.AsRef<UnsafeList<T>>(resultPtr);
+            //return resultPtr;
+
+            //// Add an UnsafeList and an array of data directly following it.
+
+            //buffer.SetCapacity(buffer.Length + UnsafeUtility.SizeOf<UnsafeList<T>>() + length * UnsafeUtility.SizeOf<T>());
+            //var list = new UnsafeList<T>(array, length);
+            //var arrayOffset = buffer.Ptr + buffer.Length;
+            //buffer.AddArray<T>(array, length);
+            //buffer.AsReader().read
+            //var listOffset = buffer.Ptr + buffer.Length - UnsafeUtility.SizeOf<int>();
+            //buffer.Add(list);
+
+            var listSizeBytes = UnsafeUtility.SizeOf<UnsafeList>();
+            var arraySizeBytes = length * UnsafeUtility.SizeOf<T>();
+            buffer.SetCapacity(buffer.Length + listSizeBytes + arraySizeBytes);
+
+            var listStartPtr = buffer.Ptr + buffer.Length;
+            var dataStartPtr = listStartPtr + listSizeBytes;
+
+            //Debug.Assert(sizeof(UnsafeList) != UnsafeUtility.SizeOf<UnsafeList>());
+
+            //if(sizeof(UnsafeList) == UnsafeUtility.SizeOf<UnsafeList>())
+            //    throw new InvalidOperationException();
+
+            UnsafeList list;
+            list.Allocator = Allocator.None;
+            list.Length = length;
+            list.Capacity = length;
+            list.Ptr = dataStartPtr;
+
+            UnsafeUtility.MemCpy(listStartPtr, &list, listSizeBytes);
+            UnsafeUtility.MemCpy(dataStartPtr, array, arraySizeBytes);
+
+            buffer.Length += listSizeBytes + arraySizeBytes;
+
+            if (buffer.Ptr == null)
+                throw new NullReferenceException();
+
+            if (listStartPtr == null)
+                throw new NullReferenceException();
+
+            if (dataStartPtr == null)
+                throw new NullReferenceException();
+
+            var data = (UnsafeAppendBuffer*)dataStartPtr;
+
+            UnsafeList* result = (UnsafeList*)listStartPtr;
+            return result;
+        }
+
         /// <summary>
         /// 
         /// </summary>

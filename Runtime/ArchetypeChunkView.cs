@@ -29,15 +29,8 @@ namespace Vella.Events
         private void* _componentStore;
 
         public int Length => _archetype->Chunks.Count;
+
         public int ChunkCapacity => _archetype->Chunks.Capacity;
-
-        public ref ArchetypeChunk this[int index] => ref AsRef(index);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ArchetypeChunk First() => GetArchetypeChunk(0);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ArchetypeChunk Last() => GetArchetypeChunk(_archetype->Chunks.Count - 1);
 
         public ArchetypeChunkView(EntityArchetype archetype)
         {
@@ -45,6 +38,14 @@ namespace Vella.Events
             _archetype = entityArchetype->Archetype;
             _componentStore = entityArchetype->_DebugComponentStore;
         }
+
+        public ArchetypeChunk this[int index] => GetArchetypeChunk(index);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ArchetypeChunk First() => GetArchetypeChunk(0);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ArchetypeChunk Last() => GetArchetypeChunk(_archetype->Chunks.Count - 1);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private ArchetypeChunk GetArchetypeChunk(int index)
@@ -55,21 +56,29 @@ namespace Vella.Events
             return UnsafeUtilityEx.AsRef<ArchetypeChunk>(&chunk);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private ref ArchetypeChunk AsRef(int index)
-        {
-            ArchetypeChunkProxy chunk;
-            chunk.m_Chunk = _archetype->Chunks.p[index];
-            chunk.entityComponentStore = _componentStore;
-            return ref UnsafeUtilityEx.AsRef<ArchetypeChunk>(&chunk);
-        }
+        //[MethodImpl(MethodImplOptions.AggressiveInlining)]
+        //private ref ArchetypeChunk AsRef(int index)
+        //{
+        //    ArchetypeChunkProxy chunk;
+        //    chunk.m_Chunk = _archetype->Chunks.p[index];
+        //    chunk.entityComponentStore = _componentStore;
+        //    return ref UnsafeUtilityEx.AsRef<ArchetypeChunk>(&chunk);
+        //}
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ArchetypeChunk* GetChunkPtr(int index)
+        public ArchetypeChunk* GetArchetypeChunkPtr(int index)
         {
-            // Note this will fail valiation due to bad _debugComponentStore.
+            // Using 'ArchetypeChunk' where possible only because it's public and 'Chunk' is not.
+            // Therefore .Count/.Capacity can be accessed without risking many hardcoded offsets.
+
             return (ArchetypeChunk*)((byte*)_archetype->Chunks.p + sizeof(void*) * index);
         }
+
+        //[MethodImpl(MethodImplOptions.AggressiveInlining)]
+        //public byte* GetChunkPtr(int index)
+        //{
+        //    return *(byte**)((byte*)_archetype->Chunks.p + sizeof(void*) * index);
+        //}
 
         public unsafe void CopyTo(void* destinationPtr)
         {
