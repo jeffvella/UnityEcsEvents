@@ -9,21 +9,9 @@ using System.Linq;
 
 namespace Vella.Events
 {
-    public enum IteratorDirection
-    {
-        Forwards = 1,
-        Backwards = -1,
-    }
 
-    public enum ChunkFilter
-    {
-        None = 0,
-        Full,
-        Partial,
-    }
-
-    [DebuggerDisplay("Count={ChunkCount}")]
-    public unsafe struct ArchetypeChunkView //: IReadOnlyList<ArchetypeChunk>
+    [DebuggerDisplay("Chunks={Length}")]
+    public unsafe struct ArchetypeChunkView
     {
         private ArchetypeProxy* _archetype;
         private void* _componentStore;
@@ -74,11 +62,11 @@ namespace Vella.Events
             return (ArchetypeChunk*)((byte*)_archetype->Chunks.p + sizeof(void*) * index);
         }
 
-        //[MethodImpl(MethodImplOptions.AggressiveInlining)]
-        //public byte* GetChunkPtr(int index)
-        //{
-        //    return *(byte**)((byte*)_archetype->Chunks.p + sizeof(void*) * index);
-        //}
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public byte* GetChunkPtr(int index)
+        {
+            return *(byte**)((byte*)_archetype->Chunks.p + sizeof(void*) * index);
+        }
 
         public unsafe void CopyTo(void* destinationPtr)
         {
@@ -179,11 +167,8 @@ namespace Vella.Events
 
             public Iterator GetEnumerator() => this;
 
-            // Note this will return an invalid _debugComponentStore.
             public ref ArchetypeChunk Current => ref *(ArchetypeChunk*)((byte*)_chunks->p + _index * sizeof(void*));
         }
-
-        public List<ArchetypeChunk> Chunks => ToList();
 
         public List<ArchetypeChunk> ToList(ChunkFilter filter = ChunkFilter.None)
         {
@@ -194,23 +179,23 @@ namespace Vella.Events
             return result;
         }
 
+        public List<ArchetypeChunk> Chunks => ToList();
         public List<ArchetypeChunk> FullChunks => ToList(ChunkFilter.Full);
-
         public List<ArchetypeChunk> PartialChunks => ToList(ChunkFilter.Partial);
 
-        //int IReadOnlyCollection<ArchetypeChunk>.Count => ChunkCount;
+    }
 
-        //IEnumerator IEnumerable.GetEnumerator() => ManagedEnumerable().GetEnumerator();
+    public enum IteratorDirection
+    {
+        Forwards = 1,
+        Backwards = -1,
+    }
 
-        //IEnumerator<ArchetypeChunk> IEnumerable<ArchetypeChunk>.GetEnumerator() => ManagedEnumerable().GetEnumerator();
-
-        //IEnumerable<ArchetypeChunk> ManagedEnumerable(ChunkFilter filter = ChunkFilter.None)
-        //{
-        //    var enu = GetEnumerator(filter);
-        //    while (enu.MoveNext())
-        //        yield return enu.Current;
-        //}
-
+    public enum ChunkFilter
+    {
+        None = 0,
+        Full,
+        Partial,
     }
 
 }

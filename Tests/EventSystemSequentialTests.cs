@@ -13,7 +13,7 @@ using Vella.Tests.Attributes;
 using Vella.Tests.Data;
 using Vella.Tests.Fixtures;
 
-public class EntityManagerSequentialTests : EntityPerformanceTestFixture
+public class EventSystemSequentialTests : EntityPerformanceTestFixture
 {
     [Test]
     public void ExactChunkSizedAmounts()
@@ -129,8 +129,8 @@ public class EntityManagerSequentialTests : EntityPerformanceTestFixture
     public void OnePartialFromPartials()
     {
         Setup(out var system, out var archetype, out var query);
-        system.InitializeEventType<EcsTestData>(1);
-        var queue = system.GetQueue<EcsTestData>();
+
+        var queue = system.GetQueue<EcsTestData>(1);
 
         var entityCounts = new[]
         {
@@ -144,8 +144,8 @@ public class EntityManagerSequentialTests : EntityPerformanceTestFixture
     public void ConvertFullInactiveChunks()
     {
         Setup(out var system, out var archetype, out var query);
-        system.InitializeEventType<EcsTestData>(archetype.ChunkCapacity * 2);
-        var queue = system.GetQueue<EcsTestData>();
+
+        var queue = system.GetQueue<EcsTestData>(archetype.ChunkCapacity * 2);
 
         var entityCounts = new[]
         {
@@ -160,8 +160,8 @@ public class EntityManagerSequentialTests : EntityPerformanceTestFixture
     public void CreateExcessFromInactives()
     {
         Setup(out var system, out var archetype, out var query);
-        system.InitializeEventType<EcsTestData>(archetype.ChunkCapacity);
-        var queue = system.GetQueue<EcsTestData>();
+
+        var queue = system.GetQueue<EcsTestData>(archetype.ChunkCapacity);
 
         var entityCounts = new[]
         {

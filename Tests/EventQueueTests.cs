@@ -326,7 +326,6 @@ public unsafe class EventQueueTests : EscQueueTestsFixture
         var queue = EnqueueComponent<EcsTestData>();
 
         Assert.AreEqual(1, queue.ComponentCount());
-        Assert.AreEqual(1, queue.CachedCount);
     }
 
     [Test, TestCategory(TestCategory.Functionality)]

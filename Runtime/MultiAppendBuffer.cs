@@ -1,29 +1,33 @@
 ﻿using System;
-using Unity.Entities;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using System.Threading;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
+using Unity.Entities;
 using Unity.Jobs.LowLevel.Unsafe;
 using Unity.Mathematics;
-using System.Runtime.CompilerServices;
 
 namespace Vella.Events
 {
     /// <summary>
     /// A collection of <see cref="UnsafeAppendBuffer"/> intended to allow one buffer per thread.
     /// </summary>
+    [DebuggerDisplay("IsEmpty={IsEmpty}")]
     public unsafe struct MultiAppendBuffer
     {
         public const int DefaultThreadIndex = -1;
-        public const int MaxThreadIndex = JobsUtility.MaxJobThreadCount-1;
+        public const int MaxThreadIndex = JobsUtility.MaxJobThreadCount - 1;
         public const int MinThreadIndex = DefaultThreadIndex;
 
         [NativeDisableUnsafePtrRestriction]
         private UnsafeAppendBuffer* _data;
-
         public readonly Allocator Allocator;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool IsInvalidThreadIndex(int index) => index < MinThreadIndex || index > MaxThreadIndex;
+
+        public bool IsEmpty => Size() == 0;
 
         public MultiAppendBuffer(Allocator allocator)
         {
@@ -32,7 +36,7 @@ namespace Vella.Events
             var bufferSize = UnsafeUtility.SizeOf<UnsafeAppendBuffer>();
             var bufferCount = JobsUtility.MaxJobThreadCount + 1;
             var allocationSize = bufferSize * bufferCount;
-            var initialBufferCapacityBytes = 1024;
+            var initialBufferCapacityBytes = 64;
 
             var ptr = (byte*)UnsafeUtility.Malloc(allocationSize, UnsafeUtility.AlignOf<int>(), Allocator.Persistent);
             UnsafeUtility.MemClear(ptr, allocationSize);
@@ -127,7 +131,6 @@ namespace Vella.Events
                     ref var buffer = ref Data.GetBuffer(Index);
                     if (buffer.Length > 0)
                     {
-
                         var amountToWrite = math.min(maxSizeBytes, buffer.Length);
 
                         bytesWritten += amountToWrite;
@@ -144,8 +147,8 @@ namespace Vella.Events
                         if (WrittenFromIndex >= buffer.Length)
                         {
                             WrittenFromIndex = 0;
-                        } 
-                        
+                        }
+
                         if (maxSizeBytes <= buffer.Length)
                         {
                             return bytesWritten;

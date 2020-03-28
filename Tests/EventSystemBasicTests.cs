@@ -8,7 +8,7 @@ using Unity.Core;
 using Unity.Entities;
 using Vella.Tests.Attributes;
 
-class EntityEventSystemTests : ECSTestsFixture
+class EventSystemBasicTests : ECSTestsFixture
 {
 
     [Test, TestCategory(TestCategory.Functionality)]

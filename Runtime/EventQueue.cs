@@ -116,7 +116,6 @@ namespace Vella.Events
 
         private int _componentSize;
         private int _bufferElementSize;
-        private int _cachedCount;
 
         public EventQueue(int componentSize, Allocator allocator) : this(componentSize, 0, allocator) { }
 
@@ -147,11 +146,9 @@ namespace Vella.Events
                 .Cast<EventQueue<TComponent, TBufferData>>();
         }
 
-        public int CachedCount => _cachedCount;
+        public int ComponentCount() => _componentSize != 0 ? _componentData.Size() / _componentSize : 0;
 
-        public int ComponentCount() => _componentSize != 0 ? _cachedCount = _componentData.Size() / _componentSize : 0;
-
-        public int LinksCount() => _cachedCount = _bufferLinks.Size() / UnsafeUtility.SizeOf<BufferLink>();
+        public int LinksCount() => _bufferLinks.Size() / UnsafeUtility.SizeOf<BufferLink>();
 
         public int BufferElementCount() => _bufferElementSize != 0 ? _bufferData.Size() / _bufferElementSize : 0;
 
@@ -171,17 +168,19 @@ namespace Vella.Events
 
         public ref UnsafeAppendBuffer GetLinksForThread(int threadIndex = MultiAppendBuffer.DefaultThreadIndex)
         {
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
             if (_componentData.IsInvalidThreadIndex(threadIndex))
                 throw new ArgumentException(nameof(threadIndex));
-
+#endif
             return ref _bufferLinks.GetBuffer(threadIndex);
         }
 
         public ref UnsafeAppendBuffer GetBuffersForThread(int threadIndex = MultiAppendBuffer.DefaultThreadIndex)
         {
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
             if (_componentData.IsInvalidThreadIndex(threadIndex))
                 throw new ArgumentException(nameof(threadIndex));
-
+#endif
             return ref _bufferData.GetBuffer(threadIndex);
         }
 
@@ -190,13 +189,19 @@ namespace Vella.Events
         public void Clear()
         {
             _componentData.Clear();
-            _bufferLinks.Clear();
+            if (_bufferElementSize == 0)
+                return;
+
+            _bufferLinks.Clear(); 
             _bufferData.Clear();
         }
 
         public void Dispose()
         {
             _componentData.Dispose();
+            if (_bufferElementSize == 0)
+                return;
+
             _bufferLinks.Dispose();
             _bufferData.Dispose();
         }
