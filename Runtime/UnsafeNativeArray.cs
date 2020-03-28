@@ -3,7 +3,7 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 
 /// <summary>
-/// An accessible proxy for NativeArray<T> with slicing functionality.
+/// An accessible proxy for NativeArray<T>.
 /// </summary>
 public unsafe struct UnsafeNativeArray
 {

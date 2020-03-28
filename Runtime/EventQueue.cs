@@ -99,7 +99,6 @@ namespace Vella.Events
     /// </summary>
     public unsafe struct EventQueue
     {
-
 #pragma warning disable IDE0044, CS0649
         [NativeSetThreadIndex]
         private int _threadIndex;
@@ -109,11 +108,6 @@ namespace Vella.Events
         public MultiAppendBuffer _bufferLinks;
         public MultiAppendBuffer _bufferData;
 
-        public struct EventQueueHeader
-        {
-
-        }
-
         private int _componentSize;
         private int _bufferElementSize;
 
@@ -122,15 +116,14 @@ namespace Vella.Events
         public EventQueue(int componentSize, int bufferElementSize, Allocator allocator) : this()
         {
             _componentData = new MultiAppendBuffer(allocator);
-            _bufferLinks = new MultiAppendBuffer(allocator);
-            _bufferData = new MultiAppendBuffer(allocator);
-            _threadIndex = MultiAppendBuffer.DefaultThreadIndex;
-            _componentSize = componentSize;
-            _bufferElementSize = bufferElementSize;
-        }
 
-        public void SetType(int componentSize, int bufferElementSize)
-        {
+            if (bufferElementSize > 0)
+            {
+                _bufferLinks = new MultiAppendBuffer(allocator);
+                _bufferData = new MultiAppendBuffer(allocator);
+            }
+
+            _threadIndex = MultiAppendBuffer.DefaultThreadIndex;
             _componentSize = componentSize;
             _bufferElementSize = bufferElementSize;
         }
@@ -146,7 +139,8 @@ namespace Vella.Events
                 .Cast<EventQueue<TComponent, TBufferData>>();
         }
 
-        public int ComponentCount() => _componentSize != 0 ? _componentData.Size() / _componentSize : 0;
+        // todo: this divide by zero check will prevent zero sized events from being created.
+        public int ComponentCount() => _componentSize != 0 ? _componentData.Size() / _componentSize : 0; 
 
         public int LinksCount() => _bufferLinks.Size() / UnsafeUtility.SizeOf<BufferLink>();
 

@@ -32,7 +32,7 @@ public class ArchetypeChunkViewTests : EntityPerformanceTestFixture
         m_Manager.CreateChunk(archetype, chunks, entityCount);
         Assert.AreEqual(archetype.ChunkCount, totalChunks);
 
-        var view = new ArchetypeChunkView(archetype);
+        var view = new ArchetypeView(archetype);
         Assert.AreEqual(archetype.ChunkCount, view.Length);
 
         var fullChunksArr = new NativeArray<ArchetypeChunk>(chunks.Where(c => c.Full).ToArray(), Allocator.Temp);
@@ -46,7 +46,7 @@ public class ArchetypeChunkViewTests : EntityPerformanceTestFixture
         AssertIteratorWorksWithFilter(ref partialChunksArr, view, ChunkFilter.Partial);
     }
 
-    private static unsafe void AssertIteratorWorksWithFilter(ref NativeArray<ArchetypeChunk> chunks, ArchetypeChunkView view, ChunkFilter filter)
+    private static unsafe void AssertIteratorWorksWithFilter(ref NativeArray<ArchetypeChunk> chunks, ArchetypeView view, ChunkFilter filter)
     {
         var i = 0;
         var enu = view.GetEnumerator(filter, IteratorDirection.Forwards);

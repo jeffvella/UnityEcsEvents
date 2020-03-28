@@ -11,7 +11,7 @@ namespace Vella.Events
 {
 
     [DebuggerDisplay("Chunks={Length}")]
-    public unsafe struct ArchetypeChunkView
+    public unsafe struct ArchetypeView
     {
         private ArchetypeProxy* _archetype;
         private void* _componentStore;
@@ -20,7 +20,7 @@ namespace Vella.Events
 
         public int ChunkCapacity => _archetype->Chunks.Capacity;
 
-        public ArchetypeChunkView(EntityArchetype archetype)
+        public ArchetypeView(EntityArchetype archetype)
         {
             var entityArchetype = ((EntityArchetypeProxy*)&archetype);
             _archetype = entityArchetype->Archetype;
@@ -44,21 +44,9 @@ namespace Vella.Events
             return UnsafeUtilityEx.AsRef<ArchetypeChunk>(&chunk);
         }
 
-        //[MethodImpl(MethodImplOptions.AggressiveInlining)]
-        //private ref ArchetypeChunk AsRef(int index)
-        //{
-        //    ArchetypeChunkProxy chunk;
-        //    chunk.m_Chunk = _archetype->Chunks.p[index];
-        //    chunk.entityComponentStore = _componentStore;
-        //    return ref UnsafeUtilityEx.AsRef<ArchetypeChunk>(&chunk);
-        //}
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ArchetypeChunk* GetArchetypeChunkPtr(int index)
         {
-            // Using 'ArchetypeChunk' where possible only because it's public and 'Chunk' is not.
-            // Therefore .Count/.Capacity can be accessed without risking many hardcoded offsets.
-
             return (ArchetypeChunk*)((byte*)_archetype->Chunks.p + sizeof(void*) * index);
         }
 
@@ -89,11 +77,11 @@ namespace Vella.Events
                 sizeof(EntityArchetype), _archetype->Chunks.p, sizeof(void*), sizeof(ArchetypeChunk), _archetype->Chunks.Count);
         }
 
-        public SimpleIterator GetEnumerator() => new SimpleIterator(ref this);
+        public SimpleChunkIterator GetEnumerator() => new SimpleChunkIterator(ref this);
 
-        public Iterator GetEnumerator(ChunkFilter filter, IteratorDirection direction = IteratorDirection.Forwards)
+        public FilteringChunkIterator GetEnumerator(ChunkFilter filter, IteratorDirection direction = IteratorDirection.Forwards)
         {
-            Iterator it;
+            FilteringChunkIterator it;
             it._chunks = &_archetype->Chunks;
             it._filter = filter;
             it._step = (int)direction;
@@ -112,12 +100,12 @@ namespace Vella.Events
             return it;
         }
 
-        public struct SimpleIterator
+        public struct SimpleChunkIterator
         {
-            private ArchetypeChunkView _source;
+            private ArchetypeView _source;
             private int _index;
 
-            public SimpleIterator(ref ArchetypeChunkView buffer)
+            public SimpleChunkIterator(ref ArchetypeView buffer)
             {
                 _source = buffer;
                 _index = -1;
@@ -132,7 +120,7 @@ namespace Vella.Events
             public ArchetypeChunk Current => _source.GetArchetypeChunk(_index);
         }
 
-        public ref struct Iterator
+        public ref struct FilteringChunkIterator
         {
             internal ArchetypeChunkDataProxy* _chunks;
             internal ChunkFilter _filter;
@@ -165,7 +153,7 @@ namespace Vella.Events
 
             public void Reset() => _index = _startIndex;
 
-            public Iterator GetEnumerator() => this;
+            public FilteringChunkIterator GetEnumerator() => this;
 
             public ref ArchetypeChunk Current => ref *(ArchetypeChunk*)((byte*)_chunks->p + _index * sizeof(void*));
         }

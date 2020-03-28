@@ -22,6 +22,10 @@ class ProxyTests : ECSTestsFixture
         AssertTypeSizesAreEqual<BufferHeaderProxy>(unityType);
         AssertInstanceBytesAreEqual<BufferHeaderProxy>(unityType);
         AssertFieldsAreEqual<BufferHeaderProxy>(unityType);
+
+        var test = new NativeList<ChunkHeader>();
+        test.AsParallelWriter();
+        
     }
 
     [Test, TestCategory(TestCategory.Integrity)]

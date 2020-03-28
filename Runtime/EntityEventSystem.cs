@@ -45,18 +45,6 @@ namespace Vella.Events
             UnsafeUtility.CopyStructureToPtr(ref data, _dataPtr);
         }
 
-        protected override void OnDestroy()
-        {
-            for (int i = 0; i < Data.Batches.Length; i++)
-                Data.Batches[i].Dispose();
-
-            Data.BatchScratch.Dispose();
-            Data.Batches.Dispose();
-            Data.TypeIndexToBatchMap.Dispose();
-            Data.StructuralChanges.Dispose();
-            UnsafeUtility.Free(_dataPtr, Allocator.Persistent);
-        }
-
         protected override void OnUpdate()
         {
             if (Data.BatchCount == 0)
@@ -447,6 +435,18 @@ namespace Vella.Events
             hash = hash * 31 + typeIndex1;
             hash = hash * 31 + typeIndex2;
             return hash;
+        }
+
+        protected override void OnDestroy()
+        {
+            for (int i = 0; i < Data.Batches.Length; i++)
+                Data.Batches[i].Dispose();
+
+            Data.BatchScratch.Dispose();
+            Data.Batches.Dispose();
+            Data.TypeIndexToBatchMap.Dispose();
+            Data.StructuralChanges.Dispose();
+            UnsafeUtility.Free(_dataPtr, Allocator.Persistent);
         }
 
     }

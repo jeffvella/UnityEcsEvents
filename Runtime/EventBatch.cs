@@ -14,7 +14,7 @@ namespace Vella.Events
     /// Contains all type and scheduling information for a specific event.
     /// </summary>
     [DebuggerDisplay("{ComponentType} Count={EntityCount}")]
-    public unsafe struct EventBatch
+    internal unsafe struct EventBatch
     {
         public struct EventDefinition
         {
@@ -30,6 +30,7 @@ namespace Vella.Events
         public ComponentType ComponentType;
         public int ComponentTypeIndex;
         public int ComponentTypeSize;
+        public int StartingPoolSize;
 
         public bool HasBuffer;
         public ComponentType BufferType;
@@ -39,13 +40,33 @@ namespace Vella.Events
         public int BufferAlignmentInBytes;
         public int BufferLinkTypeIndex;
 
+        // Destroying entities is a very costly operation and our event entities
+        // must only live for 1 frame. So the approach here is to have two 
+        // identical Archetypes for every events, then Add/Remove the 'Disabled'
+        // component. By default queries will ignore entities with a disabled component.
+        // So they won't trigger reactive systems that are waiting for events to appear.
+
         public EntityArchetype Archetype;
         public EntityArchetype InactiveArchetype;
+
+        // ArchetypeChunk methods such as GetNativeArray() need to scan the chunk types
+        // because they may change from chunk-to-chunk when used in a job.
+        // In an EventBatch the every chunk is the same and has Archetypes that 
+        // should not change so the offsets can be cached.
+        // Note these differ from Archetype/TypeInfo offsets, which exclude ChunkHeader.
+
         public ArchetypeOffsetsFromChunk Offsets;
 
-        public ArchetypeChunkView ActiveChunks;
-        public ArchetypeChunkView InactiveChunks;
+        // Mostly for debug purposes, ArchetypeView sits on top of an Archetype 
+        // and its members show the actual current counts/chunks.
 
+        public ArchetypeView ActiveChunks;
+        public ArchetypeView InactiveChunks;
+
+        // Need cached arrays of ArchetypeChunk (for subset counts and StructuralChanges method arguments) 
+        // internally unity has only 'Chunk' ptrs. So its either build ArchetypeChunks in advance or wrap 
+        // Chunks on the fly when reading from ArchetypeView.
+        
         public UnsafeList ActiveArchetypeChunks;
         public UnsafeList ActiveFullArchetypeChunks;
         public UnsafeList ActivePartialArchetypeChunk;
@@ -53,7 +74,6 @@ namespace Vella.Events
         public UnsafeList InactivePartialArchetypeChunk;
 
         public int EntityCount;
-        public int StartingPoolSize;
         public bool HasChanged;
 
         public static EventBatch Create<T>(EntityManager em, ComponentType metaComponent, int startingPoolSize = 0, Allocator allocator = Allocator.Persistent) 
@@ -68,7 +88,7 @@ namespace Vella.Events
             }, allocator);
         }
 
-        internal static EventBatch Create<T1, T2>(EntityManager em, ComponentType metaComponent, int startingPoolSize = 0, Allocator allocator = Allocator.Persistent)
+        public static EventBatch Create<T1, T2>(EntityManager em, ComponentType metaComponent, int startingPoolSize = 0, Allocator allocator = Allocator.Persistent)
             where T1 : struct, IComponentData
             where T2 : struct, IBufferElementData
         {
@@ -130,149 +150,21 @@ namespace Vella.Events
 
             Offsets = GetChunkOffsets(em, Archetype, definition.MetaType, componentType, bufferType, bufferLinkType);
 
-            ActiveChunks = new ArchetypeChunkView(Archetype);
-            InactiveChunks = new ArchetypeChunkView(InactiveArchetype);
+            ActiveChunks = new ArchetypeView(Archetype);
+            InactiveChunks = new ArchetypeView(InactiveArchetype);
+
             ActiveArchetypeChunks = new UnsafeList(Allocator.Persistent);
             ActiveFullArchetypeChunks = new UnsafeList(Allocator.Persistent);
             ActivePartialArchetypeChunk = new UnsafeList(Allocator.Persistent);
             InactiveFullArchetypeChunks = new UnsafeList(Allocator.Persistent);
             InactivePartialArchetypeChunk = new UnsafeList(Allocator.Persistent);
 
-            if(definition.StartingPoolSize > 0)
+            if (definition.StartingPoolSize > 0)
             {
                 CreateInactiveEntities(em, definition.StartingPoolSize);
                 UpdateChunkCollections();
             }
-
-            //batch.Dedicated = new DedicatedChunk(em, ComponentType);
         }
-
-        public struct DedicatedChunk
-        {
-            private UnsafeEntityManager _uem;
-            private Entity Entity;
-            private ArchetypeChunk Chunk;
-            private bool IsActive;
-            private byte* ComponentOffset;
-            private EntityArchetype _dedicatedActiveArchetype;
-            private void* _dedicatedActiveArchetypePtr;
-            private void* _dedicatedInactiveArchetypePtr;
-            private EntityArchetype _dedicatedInactiveArchetype;
-
-            public DedicatedChunk(EntityManager em, ComponentType componentType) : this()
-            {
-                //_uem = new UnsafeEntityManager(em);
-
-                //_dedicatedActiveArchetype = em.CreateArchetype(new[]
-                //{
-                //    ComponentType.ReadWrite<EntityEvent>(),
-                //    componentType,
-                //    ComponentType.ReadWrite<DedicatedFlag>(),
-                //});
-
-                //_dedicatedActiveArchetypePtr = _dedicatedActiveArchetype.GetArchetypePtr();
-                //_dedicatedInactiveArchetype = em.CreateArchetype(new[]
-                //{
-                //    ComponentType.ReadWrite<EntityEvent>(),
-                //    componentType,
-                //    ComponentType.ReadWrite<DedicatedFlag>(),
-                //    ComponentType.ReadWrite<Disabled>(),
-                //});
-
-                //_dedicatedInactiveArchetypePtr = _dedicatedInactiveArchetype.GetArchetypePtr();
-
-                //Entity = em.CreateEntity(_dedicatedInactiveArchetype);
-                //Chunk = em.GetChunk(Entity);
-          
-                //IsActive = false;
-                //ComponentOffset = GetComponentOffsetFromChunkPtr(em, _dedicatedInactiveArchetype, Chunk, componentType);
-            }
-
-            public void Activate()
-            {
-
-            }
-
-            public void Deactivate()
-            {
-
-            }
-        }
-
-        public struct DedicatedFlag : IComponentData
-        {
-
-        }
-
-        //internal static EventBatch Create<T1, T2>(EntityManager em, ComponentType metaComponent, int startingPoolSize, Allocator allocator) 
-        //    where T1 : struct, IComponentData 
-        //    where T2 : struct, IBufferElementData
-        //{
-        //    var componentTypeInfo = TypeManager.GetTypeInfo<T1>();
-        //    var componentType = ComponentType.FromTypeIndex(componentTypeInfo.TypeIndex);
-
-        //    var bufferTypeInfo = TypeManager.GetTypeInfo<T2>();
-        //    var bufferType = ComponentType.FromTypeIndex(bufferTypeInfo.TypeIndex);
-        //    var bufferLinkType = ComponentType.ReadWrite<BufferLink>();
-
-        //    var archetype = em.CreateArchetype(new[]
-        //    {
-        //        metaComponent,
-        //        componentType,
-        //        bufferType,
-        //        bufferLinkType,
-        //    });
-
-        //    var inactiveArchetype = em.CreateArchetype(new[]
-        //    {
-        //        metaComponent,
-        //        componentType,
-        //        bufferType,
-        //        bufferLinkType,
-        //        ComponentType.ReadWrite<Disabled>(),
-        //    });
-
-        //    var batch = new EventBatch
-        //    {
-        //        Allocator = allocator,
-        //        HasBuffer = true,
-
-        //        ComponentType = componentType,
-        //        ComponentTypeIndex = componentTypeInfo.TypeIndex,
-        //        ComponentTypeSize = UnsafeUtility.SizeOf<T1>(),
-
-        //        BufferType = bufferType,
-        //        BufferTypeIndex = bufferTypeInfo.TypeIndex,
-        //        BufferElementSize = bufferTypeInfo.ElementSize,
-        //        BufferSizeInChunk = bufferTypeInfo.SizeInChunk,
-        //        BufferAlignmentInBytes = bufferTypeInfo.AlignmentInBytes,
-        //        BufferLinkTypeIndex = TypeManager.GetTypeIndex<BufferLink>(),
-
-        //        ComponentQueue = new EventQueue(UnsafeUtility.SizeOf<T1>(), UnsafeUtility.SizeOf<T2>(), allocator),
-
-
-        //        StartingPoolSize = startingPoolSize,
-        //        Archetype = archetype,
-        //        InactiveArchetype = inactiveArchetype,
-
-        //        Offsets = GetChunkOffsets(em, archetype, metaComponent, componentType, bufferType, bufferLinkType)
-        //    };
-
-        //    batch.ActiveChunks = new ArchetypeChunkView(batch.Archetype);
-        //    batch.InactiveChunks = new ArchetypeChunkView(batch.InactiveArchetype);
-        //    batch.ActiveArchetypeChunks = new UnsafeList(Allocator.Persistent);
-        //    batch.ActiveFullArchetypeChunks = new UnsafeList(Allocator.Persistent);
-        //    batch.ActivePartialArchetypeChunk = new UnsafeList(Allocator.Persistent);
-        //    batch.InactiveFullArchetypeChunks = new UnsafeList(Allocator.Persistent);
-        //    batch.InactivePartialArchetypeChunk = new UnsafeList(Allocator.Persistent); 
-
-        //    if (startingPoolSize > 0)
-        //    {
-        //        batch.CreateInactiveEntities(em, startingPoolSize);
-        //        batch.UpdateChunkCollections();
-        //    }
-        //    return batch;
-        //}
 
         private void CreateInactiveEntities(EntityManager em, int entityCount)
         {
@@ -359,24 +251,6 @@ namespace Vella.Events
             }
         }
 
-        public struct ArchetypeOffsetsFromChunk : IComponentData
-        {
-            public long MetaOffset;
-            public long ComponentOffset;
-            public long BufferLinkOffset;
-            public long BufferOffset;
-        }
-
-        internal void Dispose()
-        {
-            ComponentQueue.Dispose();
-            ActiveArchetypeChunks.Dispose();
-            InactiveFullArchetypeChunks.Dispose();
-            ActiveFullArchetypeChunks.Dispose();
-            InactivePartialArchetypeChunk.Dispose();
-            ActivePartialArchetypeChunk.Dispose();
-        }
-
         public void SetComponentData()
         {
             MultiAppendBuffer.Reader queuedComponents = ComponentQueue.GetComponentReader();
@@ -412,6 +286,24 @@ namespace Vella.Events
                     }
                 }
             }
+        }
+
+        public struct ArchetypeOffsetsFromChunk : IComponentData
+        {
+            public long MetaOffset;
+            public long ComponentOffset;
+            public long BufferLinkOffset;
+            public long BufferOffset;
+        }
+
+        internal void Dispose()
+        {
+            ComponentQueue.Dispose();
+            ActiveArchetypeChunks.Dispose();
+            InactiveFullArchetypeChunks.Dispose();
+            ActiveFullArchetypeChunks.Dispose();
+            InactivePartialArchetypeChunk.Dispose();
+            ActivePartialArchetypeChunk.Dispose();
         }
     }
 
