@@ -8,7 +8,7 @@ using Unity.Core;
 using Unity.Entities;
 using Vella.Tests.Attributes;
 
-class EntityEventSystemTests : ECSTestsFixture
+class EventSystemBasicTests : ECSTestsFixture
 {
 
     [Test, TestCategory(TestCategory.Functionality)]
@@ -23,7 +23,7 @@ class EntityEventSystemTests : ECSTestsFixture
 
         var entity = query.GetSingletonEntity();
         var data = Manager.GetComponentData<EcsTestData>(entity);
-        Assert.AreEqual(data.value, EventComponentData.value);
+        Assert.AreEqual(EventComponentData.value, data.value);
 
         eventSystem.Update();
         Assert.AreEqual(query.CalculateEntityCount(), 0);

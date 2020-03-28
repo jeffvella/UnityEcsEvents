@@ -99,7 +99,6 @@ namespace Vella.Events
     /// </summary>
     public unsafe struct EventQueue
     {
-
 #pragma warning disable IDE0044, CS0649
         [NativeSetThreadIndex]
         private int _threadIndex;
@@ -109,29 +108,22 @@ namespace Vella.Events
         public MultiAppendBuffer _bufferLinks;
         public MultiAppendBuffer _bufferData;
 
-        public struct EventQueueHeader
-        {
-
-        }
-
         private int _componentSize;
         private int _bufferElementSize;
-        private int _cachedCount;
 
         public EventQueue(int componentSize, Allocator allocator) : this(componentSize, 0, allocator) { }
 
         public EventQueue(int componentSize, int bufferElementSize, Allocator allocator) : this()
         {
             _componentData = new MultiAppendBuffer(allocator);
-            _bufferLinks = new MultiAppendBuffer(allocator);
-            _bufferData = new MultiAppendBuffer(allocator);
-            _threadIndex = MultiAppendBuffer.DefaultThreadIndex;
-            _componentSize = componentSize;
-            _bufferElementSize = bufferElementSize;
-        }
 
-        public void SetType(int componentSize, int bufferElementSize)
-        {
+            if (bufferElementSize > 0)
+            {
+                _bufferLinks = new MultiAppendBuffer(allocator);
+                _bufferData = new MultiAppendBuffer(allocator);
+            }
+
+            _threadIndex = MultiAppendBuffer.DefaultThreadIndex;
             _componentSize = componentSize;
             _bufferElementSize = bufferElementSize;
         }
@@ -147,11 +139,10 @@ namespace Vella.Events
                 .Cast<EventQueue<TComponent, TBufferData>>();
         }
 
-        public int CachedCount => _cachedCount;
+        // todo: this divide by zero check will prevent zero sized events from being created.
+        public int ComponentCount() => _componentSize != 0 ? _componentData.Size() / _componentSize : 0; 
 
-        public int ComponentCount() => _componentSize != 0 ? _cachedCount = _componentData.Size() / _componentSize : 0;
-
-        public int LinksCount() => _cachedCount = _bufferLinks.Size() / UnsafeUtility.SizeOf<BufferLink>();
+        public int LinksCount() => _bufferLinks.Size() / UnsafeUtility.SizeOf<BufferLink>();
 
         public int BufferElementCount() => _bufferElementSize != 0 ? _bufferData.Size() / _bufferElementSize : 0;
 
@@ -159,7 +150,7 @@ namespace Vella.Events
 
         public MultiAppendBuffer.Reader GetLinksReader() => _bufferLinks.AsReader();
 
-        public MultiAppendBuffer.Reader GetBuffersReader() => _bufferLinks.AsReader();
+        public MultiAppendBuffer.Reader GetBuffersReader() => _bufferData.AsReader();
 
         public ref UnsafeAppendBuffer GetComponentsForThread(int threadIndex = MultiAppendBuffer.DefaultThreadIndex)
         {
@@ -171,17 +162,19 @@ namespace Vella.Events
 
         public ref UnsafeAppendBuffer GetLinksForThread(int threadIndex = MultiAppendBuffer.DefaultThreadIndex)
         {
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
             if (_componentData.IsInvalidThreadIndex(threadIndex))
                 throw new ArgumentException(nameof(threadIndex));
-
+#endif
             return ref _bufferLinks.GetBuffer(threadIndex);
         }
 
         public ref UnsafeAppendBuffer GetBuffersForThread(int threadIndex = MultiAppendBuffer.DefaultThreadIndex)
         {
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
             if (_componentData.IsInvalidThreadIndex(threadIndex))
                 throw new ArgumentException(nameof(threadIndex));
-
+#endif
             return ref _bufferData.GetBuffer(threadIndex);
         }
 
@@ -190,13 +183,19 @@ namespace Vella.Events
         public void Clear()
         {
             _componentData.Clear();
-            _bufferLinks.Clear();
+            if (_bufferElementSize == 0)
+                return;
+
+            _bufferLinks.Clear(); 
             _bufferData.Clear();
         }
 
         public void Dispose()
         {
             _componentData.Dispose();
+            if (_bufferElementSize == 0)
+                return;
+
             _bufferLinks.Dispose();
             _bufferData.Dispose();
         }
@@ -207,9 +206,24 @@ namespace Vella.Events
             _componentData.GetBuffer(_threadIndex).Add(item, _componentSize);
         }
 
-        public void Enqueue(byte* ptr)
+        public void EnqueueComponent(byte* ptr)
         {
             _componentData.GetBuffer(_threadIndex).Add(ptr, _componentSize);
+        }
+
+        public void Enqueue<T>(T item) where T : unmanaged
+        {
+            _componentData.GetBuffer(_threadIndex).Add(&item, sizeof(T));
+        }
+
+        public void Enqueue<T>(byte* ptr) where T : unmanaged
+        {
+            _componentData.GetBuffer(_threadIndex).Add(ptr, sizeof(T));
+        }
+
+        public void Enqueue(byte* ptr, int length)
+        {
+            _componentData.GetBuffer(_threadIndex).Add(ptr, length);
         }
     }
 

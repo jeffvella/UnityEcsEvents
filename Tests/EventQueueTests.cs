@@ -18,6 +18,14 @@ using Vella.Tests.Helpers;
 public unsafe class EventQueueTests : EscQueueTestsFixture
 {
     [Test, TestCategory(TestCategory.Functionality)]
+    unsafe public void ZeroSizedComponent()
+    {
+        var queue = EnqueueComponent<EcsTestDataZeroSized>();
+
+        Assert.AreEqual(queue.ComponentCount(), 1);
+    }
+
+    [Test, TestCategory(TestCategory.Functionality)]
     unsafe public void EnqueuesComponent()
     {
         var queue = EnqueueComponent<EcsTestData>();
@@ -301,12 +309,6 @@ public unsafe class EventQueueTests : EscQueueTestsFixture
     }
 
     [Test, TestCategory(TestCategory.Compatibility)]
-    public void ZeroSizedComponent()
-    {
-        EnqueueComponent<EcsTestDataZeroSized>();
-    }
-
-    [Test, TestCategory(TestCategory.Compatibility)]
     public void ZeroSizedBufferElement()
     {
         var bufferElements = new NativeArray<EcsTestElementZeroSized>(10, Allocator.Temp);
@@ -324,7 +326,6 @@ public unsafe class EventQueueTests : EscQueueTestsFixture
         var queue = EnqueueComponent<EcsTestData>();
 
         Assert.AreEqual(1, queue.ComponentCount());
-        Assert.AreEqual(1, queue.CachedCount);
     }
 
     [Test, TestCategory(TestCategory.Functionality)]
