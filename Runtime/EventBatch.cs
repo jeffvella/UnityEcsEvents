@@ -42,7 +42,7 @@ namespace Vella.Events
 
         // Destroying entities is a very costly operation and our event entities
         // must only live for 1 frame. So the approach here is to have two 
-        // identical Archetypes for every events, then Add/Remove the 'Disabled'
+        // identical Archetypes for every event type, then Add/Remove the 'Disabled'
         // component. By default queries will ignore entities with a disabled component.
         // So they won't trigger reactive systems that are waiting for events to appear.
 
@@ -130,12 +130,9 @@ namespace Vella.Events
             };
 
             Allocator = allocator;
-            HasBuffer = false;
-
             ComponentType = componentType;
             ComponentTypeIndex = definition.ComponentTypeInfo.TypeIndex;
             ComponentTypeSize = definition.ComponentTypeInfo.SizeInChunk;
-            ComponentQueue = new EventQueue(definition.ComponentTypeInfo.SizeInChunk, allocator);
 
             BufferType = bufferType;
             BufferTypeIndex = definition.BufferTypeInfo.TypeIndex;
@@ -148,6 +145,7 @@ namespace Vella.Events
             InactiveArchetype = em.CreateArchetype(inactiveComponents.ToArray());
             StartingPoolSize = definition.StartingPoolSize;
 
+            ComponentQueue = new EventQueue(ComponentTypeSize, BufferElementSize, allocator);
             Offsets = GetChunkOffsets(em, Archetype, definition.MetaType, componentType, bufferType, bufferLinkType);
 
             ActiveChunks = new ArchetypeView(Archetype);

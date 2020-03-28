@@ -34,12 +34,24 @@ namespace Vella.Events
             for (int i = 0; i < AddComponentToChunks.Length; i++)
             {
                 var op = ((AddComponentChunkOp*)AddComponentToChunks.Ptr)[i];
+
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+                for (int j = 0; j < op.Count; j++)
+                    ((ArchetypeChunk*)op.Chunks)[j].Invalid();
+#endif
+
                 _uem.AddComponentToChunks(op.Chunks, op.Count, op.TypeIndex);
             }
 
             for (int i = 0; i < RemoveComponentFromChunks.Length; i++)
             {
+
                 var op = ((RemoveComponentChunkOp*)RemoveComponentFromChunks.Ptr)[i];
+
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+                for (int j = 0; j < op.Count; j++)
+                    ((ArchetypeChunk*)op.Chunks)[j].Invalid();
+#endif
                 _uem.RemoveComponentFromChunks(op.Chunks, op.Count, op.TypeIndex);
             }
 

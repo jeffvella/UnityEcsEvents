@@ -150,7 +150,7 @@ namespace Vella.Events
 
         public MultiAppendBuffer.Reader GetLinksReader() => _bufferLinks.AsReader();
 
-        public MultiAppendBuffer.Reader GetBuffersReader() => _bufferLinks.AsReader();
+        public MultiAppendBuffer.Reader GetBuffersReader() => _bufferData.AsReader();
 
         public ref UnsafeAppendBuffer GetComponentsForThread(int threadIndex = MultiAppendBuffer.DefaultThreadIndex)
         {

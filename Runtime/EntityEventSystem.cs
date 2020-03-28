@@ -21,7 +21,6 @@ namespace Vella.Events
             public UnsafeEntityManager UnsafeEntityManager;
             public StructuralChangeQueue StructuralChanges;
             public ComponentType EventComponent;
-            public UnsafeAppendBuffer BatchScratch;
             public int DisabledTypeIndex;
             public int BatchCount;
             public int EntityCount;
@@ -72,7 +71,6 @@ namespace Vella.Events
                 ref var data = ref UnsafeUtilityEx.AsRef<EventSystemData>(dataPtr);
 
                 data.StructuralChanges.Clear();
-                data.BatchScratch.Reset();
                 data.EntityCount = 0;
                 data.HasChanged = false;
 
@@ -84,11 +82,14 @@ namespace Vella.Events
                     data.EntityCount += requiredEntities;
                     batch.HasChanged = batch.EntityCount != requiredEntities;
 
-                    if (batch.HasChanged)
-                        data.HasChanged = true;
-                    else
+                    if (!batch.HasChanged)
+                    {
+                        // Don't create or delete anything; 
+                        // Just set component data on existing entities.
                         continue;
+                    }
 
+                    data.HasChanged = true;
                     batch.EntityCount = requiredEntities;
 
                     if (requiredEntities == 0)
@@ -118,7 +119,7 @@ namespace Vella.Events
                     {
                         var remainingFullChunks = requiredFullChunks;
 
-                        // Keep Active Fulls
+                        // Keep full active chunks
                         if (batch.ActiveFullArchetypeChunks.Length != 0)
                         {
                             var kept = math.min(remainingFullChunks, batch.ActiveFullArchetypeChunks.Length);
@@ -127,7 +128,7 @@ namespace Vella.Events
                             var excessActiveChunks = batch.ActiveFullArchetypeChunks.Length - kept;
                             if (excessActiveChunks != 0)
                             {
-                                // Deactivate excess full active chunks
+                                // Deactivate excess
                                 data.StructuralChanges.AddComponentToChunks.Add(new AddComponentChunkOp
                                 {
                                     Chunks = batch.ActiveFullArchetypeChunks.Ptr,
@@ -139,7 +140,7 @@ namespace Vella.Events
 
                         if (batch.ActivePartialArchetypeChunk.Length != 0)
                         {
-                            // Deactivate active partials
+                            // Deactivate partial chunks
                             data.StructuralChanges.AddComponentToChunks.Add(new AddComponentChunkOp
                             {
                                 Chunks = batch.ActivePartialArchetypeChunk.Ptr,
@@ -148,7 +149,7 @@ namespace Vella.Events
                             });
                         }
 
-                        // Convert Inactive Fulls
+                        // Activate inactive full chunks
                         if (remainingFullChunks > 0 && remainingInactiveFulls != 0)
                         {
                             var conversionCount = math.min(remainingFullChunks, batch.InactiveFullArchetypeChunks.Length);
@@ -244,6 +245,8 @@ namespace Vella.Events
 
             }).Run();
         }
+
+
 
         internal void SetComponents()
         {
@@ -416,7 +419,6 @@ namespace Vella.Events
                     StartingPoolSize = startingPoolSize,
                     ComponentTypeInfo = typeInfo,
                     BufferTypeInfo = bufferTypeInfo,
-
                 });
 
                 index = Data.BatchCount++;
@@ -428,7 +430,6 @@ namespace Vella.Events
             return (Data.Batches[index], false);
         }
 
-        private int GetKey<T1, T2>() => GetKey<T1, T2>();
         private int GetKey(int typeIndex1, int typeIndex2)
         {
             int hash = 23;
@@ -442,7 +443,6 @@ namespace Vella.Events
             for (int i = 0; i < Data.Batches.Length; i++)
                 Data.Batches[i].Dispose();
 
-            Data.BatchScratch.Dispose();
             Data.Batches.Dispose();
             Data.TypeIndexToBatchMap.Dispose();
             Data.StructuralChanges.Dispose();
