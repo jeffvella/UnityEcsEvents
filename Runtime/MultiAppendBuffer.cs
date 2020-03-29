@@ -38,13 +38,13 @@ namespace Vella.Events
             var allocationSize = bufferSize * bufferCount;
             var initialBufferCapacityBytes = 64;
 
-            var ptr = (byte*)UnsafeUtility.Malloc(allocationSize, UnsafeUtility.AlignOf<int>(), Allocator.Persistent);
+            var ptr = (byte*)UnsafeUtility.Malloc(allocationSize, UnsafeUtility.AlignOf<int>(), allocator);
             UnsafeUtility.MemClear(ptr, allocationSize);
 
             for (int i = 0; i < bufferCount; i++)
             {
                 var bufferPtr = (UnsafeAppendBuffer*)(ptr + bufferSize * i);
-                var buffer = new UnsafeAppendBuffer(initialBufferCapacityBytes, UnsafeUtility.AlignOf<int>(), Allocator.Persistent);
+                var buffer = new UnsafeAppendBuffer(initialBufferCapacityBytes, UnsafeUtility.AlignOf<int>(), allocator);
                 UnsafeUtility.CopyStructureToPtr(ref buffer, bufferPtr);
             }
 
@@ -171,7 +171,7 @@ namespace Vella.Events
 
         public void Clear()
         {
-            for (int i = -1; i < JobsUtility.MaxJobThreadCount + 1; i++)
+            for (int i = -1; i < JobsUtility.MaxJobThreadCount; i++)
             {
                 GetBuffer(i).Reset();
             }
