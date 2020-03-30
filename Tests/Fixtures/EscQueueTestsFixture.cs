@@ -17,7 +17,7 @@ namespace Vella.Tests.Fixtures
         {
             private Allocator _allocator;
 
-            public QueueRig(Allocator allocator = Allocator.Temp)
+            public QueueRig(Allocator allocator)
             {
                 _allocator = allocator;
             }
@@ -100,7 +100,7 @@ namespace Vella.Tests.Fixtures
 
         protected static EventQueue EnqueueComponent<T>(T component = default) where T : struct, IComponentData
         {
-            var (baseQueue, componentQueue, bufferQueue) = new QueueRig<T, EcsIntElement>();
+            var (baseQueue, componentQueue, bufferQueue) = new QueueRig<T, EcsIntElement>(Allocator.Temp);
 
             componentQueue.Enqueue(component);
 
@@ -111,7 +111,7 @@ namespace Vella.Tests.Fixtures
             where T1 : struct, IComponentData
             where T2 : unmanaged, IBufferElementData
         {
-            var (baseQueue, componentQueue, bufferQueue) = new QueueRig<T1, T2>();
+            var (baseQueue, componentQueue, bufferQueue) = new QueueRig<T1, T2>(Allocator.Temp);
 
             bufferQueue.Enqueue(component, bufferElements);
 

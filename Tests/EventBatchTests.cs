@@ -20,7 +20,7 @@ public class EventBatchTests : ECSTestsFixture
 
         // Component Only
 
-        var batch = EventBatch.Create<EcsTestData>(Manager, meta, 0, Allocator.Temp);
+        var batch = EventBatch.CreateComponentBatch<EcsTestData>(Manager, meta, 0, Allocator.Temp);
 
         var activeTypes = batch.Archetype.GetComponentTypes().ToArray();
 
@@ -35,7 +35,7 @@ public class EventBatchTests : ECSTestsFixture
 
         // Component + Buffer
 
-        batch = EventBatch.Create<EcsTestData, EcsIntElement >(Manager, meta, 0, Allocator.Temp);
+        batch = EventBatch.CreateComponentAndBufferBatch<EcsTestData, EcsIntElement >(Manager, meta, 0, Allocator.Temp);
 
         activeTypes = batch.Archetype.GetComponentTypes().ToArray();
 
@@ -60,7 +60,7 @@ public class EventBatchTests : ECSTestsFixture
 
         // Component Only
 
-        var batch = EventBatch.Create<EcsTestData>(Manager, meta, 1, Allocator.Temp);
+        var batch = EventBatch.CreateComponentBatch<EcsTestData>(Manager, meta, 1, Allocator.Temp);
         var activeQuery = Manager.CreateEntityQuery(batch.Archetype.GetComponentTypes().ToArray());
         var inactiveQuery = Manager.CreateEntityQuery(new EntityQueryDesc
         {
@@ -73,7 +73,7 @@ public class EventBatchTests : ECSTestsFixture
 
         Manager.DestroyEntity(inactiveQuery);
 
-        batch = EventBatch.Create<EcsTestData>(Manager, meta, 12345, Allocator.Temp);
+        batch = EventBatch.CreateComponentBatch<EcsTestData>(Manager, meta, 12345, Allocator.Temp);
         activeQuery = Manager.CreateEntityQuery(batch.Archetype.GetComponentTypes().ToArray());
         inactiveQuery = Manager.CreateEntityQuery(new EntityQueryDesc
         {
@@ -88,7 +88,7 @@ public class EventBatchTests : ECSTestsFixture
 
         // Component + Buffer
 
-        batch = EventBatch.Create<EcsTestData, EcsIntElement>(Manager, meta, 100, Allocator.Temp);
+        batch = EventBatch.CreateComponentAndBufferBatch<EcsTestData, EcsIntElement>(Manager, meta, 100, Allocator.Temp);
         activeQuery = Manager.CreateEntityQuery(batch.Archetype.GetComponentTypes().ToArray());
         inactiveQuery = Manager.CreateEntityQuery(new EntityQueryDesc
         {
@@ -101,17 +101,23 @@ public class EventBatchTests : ECSTestsFixture
     }
 
     [Test]
-    public void HasBufferForBufferBatches()
+    public void HasBufferAndHasComponentFields()
     {
-
         var meta = ComponentType.ReadWrite<EntityEvent>();
 
-        var componentBatch = EventBatch.Create<EcsTestData>(Manager, meta, 0, Allocator.Temp);
+        var componentBatch = EventBatch.CreateComponentBatch<EcsTestData>(Manager, meta, 0, Allocator.Temp);
+        Assert.IsTrue(componentBatch.HasComponent);
         Assert.IsFalse(componentBatch.HasBuffer);
 
-        var bufferBatch = EventBatch.Create<EcsTestData, EcsIntElement>(Manager, meta, 0, Allocator.Temp);
-        Assert.IsTrue(bufferBatch.HasBuffer);
+        var combinedBatch = EventBatch.CreateComponentAndBufferBatch<EcsTestData, EcsIntElement>(Manager, meta, 0, Allocator.Temp);
+        Assert.IsTrue(combinedBatch.HasComponent);
+        Assert.IsTrue(combinedBatch.HasBuffer);
+
+        var bufferOnlyBatch = EventBatch.CreateBufferBatch<EcsIntElement>(Manager, meta, 0, Allocator.Temp);
+        Assert.IsFalse(bufferOnlyBatch.HasComponent);
+        Assert.IsTrue(bufferOnlyBatch.HasBuffer);
     }
+
 
     // todo:
     // check offsets

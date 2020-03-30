@@ -21,34 +21,35 @@ namespace Vella.Events
         public const int MinThreadIndex = DefaultThreadIndex;
 
         [NativeDisableUnsafePtrRestriction]
-        private UnsafeAppendBuffer* _data;
-        public readonly Allocator Allocator;
+        public UnsafeAppendBuffer* Ptr;
+
+        internal byte* BaseAddress => (byte*)Ptr - sizeof(Allocator);
+        public Allocator Allocator => *(Allocator*)BaseAddress;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool IsInvalidThreadIndex(int index) => index < MinThreadIndex || index > MaxThreadIndex;
 
         public bool IsEmpty => Size() == 0;
 
-        public MultiAppendBuffer(Allocator allocator)
+        public MultiAppendBuffer(Allocator allocator, int initialCapacityPerThread = JobsUtility.CacheLineSize)
         {
-            Allocator = allocator;
-
             var bufferSize = UnsafeUtility.SizeOf<UnsafeAppendBuffer>();
             var bufferCount = JobsUtility.MaxJobThreadCount + 1;
             var allocationSize = bufferSize * bufferCount;
-            var initialBufferCapacityBytes = 64;
+            var initialBufferCapacityBytes = initialCapacityPerThread;
 
             var ptr = (byte*)UnsafeUtility.Malloc(allocationSize, UnsafeUtility.AlignOf<int>(), allocator);
             UnsafeUtility.MemClear(ptr, allocationSize);
+            UnsafeUtility.CopyStructureToPtr(ref allocator, ptr);
 
+            var dataStartPtr = ptr + sizeof(Allocator);
             for (int i = 0; i < bufferCount; i++)
             {
-                var bufferPtr = (UnsafeAppendBuffer*)(ptr + bufferSize * i);
+                var bufferPtr = (UnsafeAppendBuffer*)(dataStartPtr + bufferSize * i);
                 var buffer = new UnsafeAppendBuffer(initialBufferCapacityBytes, UnsafeUtility.AlignOf<int>(), allocator);
                 UnsafeUtility.CopyStructureToPtr(ref buffer, bufferPtr);
             }
-
-            _data = (UnsafeAppendBuffer*)ptr;
+            Ptr = (UnsafeAppendBuffer*)dataStartPtr;
         }
 
         /// <summary>
@@ -75,7 +76,7 @@ namespace Vella.Events
             // (main thread without explicitly checking for ThreadId) 
             // should use first index by providing threadIndex of -1;
 
-            return ref UnsafeUtilityEx.ArrayElementAsRef<UnsafeAppendBuffer>(_data, threadIndex + 1);
+            return ref UnsafeUtilityEx.ArrayElementAsRef<UnsafeAppendBuffer>(Ptr, threadIndex + 1);
         }
 
         /// <summary>
@@ -166,7 +167,7 @@ namespace Vella.Events
             {
                 GetBuffer(i).Dispose();
             }
-            UnsafeUtility.Free(_data, Allocator);
+            UnsafeUtility.Free(BaseAddress, Allocator);
         }
 
         public void Clear()

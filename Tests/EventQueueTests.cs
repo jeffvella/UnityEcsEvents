@@ -1,5 +1,6 @@
 using NUnit.Framework;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
@@ -33,20 +34,20 @@ public unsafe class EventQueueTests : EscQueueTestsFixture
         Assert.AreEqual(queue.ComponentCount(), 1);
     }
 
-    [Test, TestCategory(TestCategory.Functionality)]
-    public void EnqueuesComponentsFromArray()
-    {
-        var (baseQueue, componentQueue, bufferQueue) = new QueueRig<EcsTestData, EcsIntElement>();
+    //[Test, TestCategory(TestCategory.Functionality)]
+    //public void EnqueuesComponentsFromArray()
+    //{
+    //    var (baseQueue, componentQueue, bufferQueue) = new QueueRig<EcsTestData, EcsIntElement>(Allocator.Temp);
 
-        componentQueue.Enqueue(new NativeArrayBuilder<EcsTestData>
-        {
-            new EcsTestData { value = 2 },
-            new EcsTestData { value = 3 },
-            new EcsTestData { value = 4 }
-        });
+    //    componentQueue.Enqueue(new NativeArrayBuilder<EcsTestData>
+    //    {
+    //        new EcsTestData { value = 2 },
+    //        new EcsTestData { value = 3 },
+    //        new EcsTestData { value = 4 }
+    //    });
 
-        Assert.AreEqual(baseQueue.ComponentCount(), 3);
-    }
+    //    Assert.AreEqual(baseQueue.ComponentCount(), 3);
+    //}
 
     [Test, TestCategory(TestCategory.Functionality)]
     public void EnqueuesBufferFromArray()
@@ -63,7 +64,7 @@ public unsafe class EventQueueTests : EscQueueTestsFixture
     [Test, TestCategory(TestCategory.Functionality)]
     public void EnqueuesFromBurst()
     {
-        var (baseQueue, componentQueue, bufferQueue) = new QueueRig<EcsTestData, EcsIntElement>();
+        var (baseQueue, componentQueue, bufferQueue) = new QueueRig<EcsTestData, EcsIntElement>(Allocator.Temp);
 
         new EnqueuesFromBurstJob
         {
@@ -168,48 +169,48 @@ public unsafe class EventQueueTests : EscQueueTestsFixture
         }
     }
 
-    [Test, TestCategory(TestCategory.Integrity)]
-    public void GetDataByThreadId()
-    {
-        var queue = EnqueueComponent<EcsTestData>();
+    //[Test, TestCategory(TestCategory.Integrity)]
+    //public void GetDataByThreadId()
+    //{
+    //    var queue = EnqueueComponent<EcsTestData>();
 
-        Assert.Throws<ArgumentException>(() =>
-        {
-            queue.GetComponentsForThread(MultiAppendBuffer.MinThreadIndex - 1);
-        });
+    //    Assert.Throws<ArgumentException>(() =>
+    //    {
+    //        queue.GetComponentsForThread(MultiAppendBuffer.MinThreadIndex - 1);
+    //    });
 
-        Assert.Throws<ArgumentException>(() =>
-        {
-            queue.GetLinksForThread(MultiAppendBuffer.MinThreadIndex - 1);
-        });
+    //    Assert.Throws<ArgumentException>(() =>
+    //    {
+    //        queue.GetLinksForThread(MultiAppendBuffer.MinThreadIndex - 1);
+    //    });
 
-        Assert.Throws<ArgumentException>(() =>
-        {
-            queue.GetBuffersForThread(MultiAppendBuffer.MinThreadIndex - 1);
-        });
+    //    Assert.Throws<ArgumentException>(() =>
+    //    {
+    //        queue.GetBuffersForThread(MultiAppendBuffer.MinThreadIndex - 1);
+    //    });
 
-        Assert.Throws<ArgumentException>(() =>
-        {
-            queue.GetComponentsForThread(MultiAppendBuffer.MaxThreadIndex + 1);
-        });
+    //    Assert.Throws<ArgumentException>(() =>
+    //    {
+    //        queue.GetComponentsForThread(MultiAppendBuffer.MaxThreadIndex + 1);
+    //    });
 
-        Assert.Throws<ArgumentException>(() =>
-        {
-            queue.GetLinksForThread(MultiAppendBuffer.MaxThreadIndex + 1);
-        });
+    //    Assert.Throws<ArgumentException>(() =>
+    //    {
+    //        queue.GetLinksForThread(MultiAppendBuffer.MaxThreadIndex + 1);
+    //    });
 
-        Assert.Throws<ArgumentException>(() =>
-        {
-            queue.GetBuffersForThread(MultiAppendBuffer.MaxThreadIndex + 1);
-        });
+    //    Assert.Throws<ArgumentException>(() =>
+    //    {
+    //        queue.GetBuffersForThread(MultiAppendBuffer.MaxThreadIndex + 1);
+    //    });
 
-        Assert.DoesNotThrow(() =>
-        {
-            queue.GetComponentsForThread(MultiAppendBuffer.DefaultThreadIndex);
-            queue.GetLinksForThread(MultiAppendBuffer.DefaultThreadIndex);
-            queue.GetBuffersForThread(MultiAppendBuffer.DefaultThreadIndex);
-        });
-    }
+    //    Assert.DoesNotThrow(() =>
+    //    {
+    //        queue.GetComponentsForThread(MultiAppendBuffer.DefaultThreadIndex);
+    //        queue.GetLinksForThread(MultiAppendBuffer.DefaultThreadIndex);
+    //        queue.GetBuffersForThread(MultiAppendBuffer.DefaultThreadIndex);
+    //    });
+    //}
 
     [Test, TestCategory(TestCategory.Functionality)]
     public void EnqueuesFromDynamicBuffer()
@@ -240,7 +241,7 @@ public unsafe class EventQueueTests : EscQueueTestsFixture
         var buffer = Manager.GetBuffer<EcsIntElement>(entity);
         buffer.AddRange(testBuffer);
 
-        var (baseQueue, componentQueue, bufferQueue) = new QueueRig<EcsTestData, EcsIntElement>();
+        var (baseQueue, componentQueue, bufferQueue) = new QueueRig<EcsTestData, EcsIntElement>(Allocator.Temp);
 
         var handle1 = new EnqueuesFromDynamicBufferJob
         {
@@ -303,6 +304,7 @@ public unsafe class EventQueueTests : EscQueueTestsFixture
 
         queue.Clear();
 
+        Assert.AreEqual(0, queue.Count());
         Assert.AreEqual(0, queue.ComponentCount());
         Assert.AreEqual(0, queue.LinksCount());
         Assert.AreEqual(0, queue.BufferElementCount());
@@ -313,32 +315,105 @@ public unsafe class EventQueueTests : EscQueueTestsFixture
     {
         var bufferElements = new NativeArray<EcsTestElementZeroSized>(10, Allocator.Temp);
 
+        // Im not sure there's ever a case where having a zero sized buffer element would be useful?
+
         var queue = EnqueueBuffer<EcsTestDataZeroSized, EcsTestElementZeroSized>(default, bufferElements);
 
+        Assert.AreEqual(queue.Count(), 1);
         Assert.AreEqual(queue.ComponentCount(), 1);
         Assert.AreEqual(queue.LinksCount(), 1);
         Assert.AreEqual(queue.BufferElementCount(), bufferElements.Length);
     }
 
     [Test, TestCategory(TestCategory.Functionality)]
-    public void CachedCountUpdates()
+    public void ReadsMetaComponents([Values(0, 10)] int componentCount)
     {
-        var queue = EnqueueComponent<EcsTestData>();
+        var baseQueue = new EventQueue(UnsafeUtility.SizeOf<EcsTestData>(), Allocator.Temp);
+        var componentQueue = baseQueue.Cast<EventQueue<EcsTestData>>();
+        var source = new NativeArray<EntityEvent>(componentCount, Allocator.Temp);
+        var destination = new NativeArray<EntityEvent>(componentCount, Allocator.Temp);
+        var set = new HashSet<int>();
 
-        Assert.AreEqual(1, queue.ComponentCount());
+        for (int i = 0; i < source.Length; i++)
+        {
+            ref var metaBuffer = ref baseQueue._metaData.GetBuffer(-1);
+            var id = EventQueue.CreateIdHash((int)baseQueue._metaData.Ptr, (int)metaBuffer.Ptr, i * sizeof(EntityEvent));
+            source[i] = new EntityEvent
+            {
+                Id = id
+            };
+            set.Add(id);
+        }
+
+        for (int i = 0; i < source.Length; i++)
+            componentQueue.Enqueue(new EcsTestData { value = i });
+
+        Assert.DoesNotThrow(() =>
+        {
+            var reader = baseQueue.GetMetaReader();
+            reader.CopyTo(destination.GetUnsafePtr(), source.Length * sizeof(EntityEvent));
+        });
+
+        AssertBytesAreEqual(source, destination);
+    }
+
+    [Test, TestCategory(TestCategory.Functionality)]
+    public void UniqueEventIds([Values(100000)] int componentCount)
+    {
+        var baseQueue = new EventQueue(UnsafeUtility.SizeOf<EcsTestData>(), Allocator.Temp);
+        var componentQueue = baseQueue.Cast<EventQueue<EcsTestData>>();
+        var set = new HashSet<int>();
+
+        var queues = new List<EventQueue>();
+        {
+            new EventQueue(0, 0, Allocator.Temp);
+            new EventQueue(1, 0, Allocator.Temp);
+            new EventQueue(4, 0, Allocator.Temp);
+            new EventQueue(8, 0, Allocator.Temp);
+            new EventQueue(0, 1, Allocator.Temp);
+            new EventQueue(0, 4, Allocator.Temp);
+            new EventQueue(0, 8, Allocator.Temp);
+            new EventQueue(12, 0, Allocator.Temp);
+            new EventQueue(236, 0, Allocator.Temp);
+            new EventQueue(512, 0, Allocator.Temp);
+            new EventQueue(4, 4, Allocator.Temp);
+            new EventQueue(16, 16, Allocator.Temp);
+            new EventQueue(236, 32, Allocator.Temp);
+            new EventQueue(1024, 1024, Allocator.Temp);
+            new EventQueue(2048, 2048, Allocator.Temp);
+        };
+
+        Assert.DoesNotThrow(() =>
+        {
+            foreach(var q in queues)
+            {
+                for (int i = 0; i < componentCount; i++)
+                {
+                    for (int j = MultiAppendBuffer.MinThreadIndex; j <= MultiAppendBuffer.MinThreadIndex; j++)
+                    {
+                        ref var metaBuffer = ref q._metaData.GetBuffer(j);
+                        var id = EventQueue.CreateIdHash((int)q._metaData.Ptr, (int)metaBuffer.Ptr, j * sizeof(EntityEvent));
+                        set.Add(id);
+                    }
+                }
+            }
+        });
+
     }
 
     [Test, TestCategory(TestCategory.Functionality)]
     public void ReadsQueuedComponents([Values(0, 10)] int componentCount)
     {
-        var (baseQueue, componentQueue, bufferQueue) = new QueueRig<EcsTestData, EcsIntElement>();
+        var (baseQueue, componentQueue, bufferQueue) = new QueueRig<EcsTestData, EcsIntElement>(Allocator.Temp);
         var source = new NativeArray<EcsTestData>(componentCount, Allocator.Temp);
         var destination = new NativeArray<EcsTestData>(componentCount, Allocator.Temp);
 
         for (int i = 0; i < source.Length; i++)
             source[i] = new EcsTestData { value = i };
 
-        componentQueue.Enqueue(source);
+        for (int i = 0; i < source.Length; i++)
+            componentQueue.Enqueue(new EcsTestData { value = i });
+
 
         Assert.DoesNotThrow(() =>
         {
@@ -352,7 +427,7 @@ public unsafe class EventQueueTests : EscQueueTestsFixture
     [Test, TestCategory(TestCategory.Functionality)]
     public void ReadsQueuedBuffers([Values(0, 10, 100)] int componentCount, [Values(0, 1, 10)] int bufferElementCount)
     {
-        var (baseQueue, componentQueue, bufferQueue) = new QueueRig<EcsTestData, EcsIntElement>();
+        var (baseQueue, componentQueue, bufferQueue) = new QueueRig<EcsTestData, EcsIntElement>(Allocator.Temp);
 
         var components = new NativeArray<EcsTestData>(componentCount, Allocator.Temp);
         var links = new NativeArray<BufferLink>(componentCount, Allocator.Temp);

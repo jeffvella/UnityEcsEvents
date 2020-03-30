@@ -53,15 +53,20 @@ namespace Vella.Events
             StructuralChangeProxy.CreateEntity(_componentDataStore, entityArchetypePtr, (Entity*)((byte*)destination + sizeof(Entity) * startOffset), entityCount);
         }
 
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetArchetype(EntityArchetype destinationArchetype, void* entities, int length)
         {
             var archetypePtr = destinationArchetype.GetArchetypePtr();
             for (int i = 0; i < length; i++)
             {
-                StructuralChangeProxy.MoveEntityArchetype(_componentDataStore, (Entity*)((byte*)entities + i * sizeof(Entity)), archetypePtr);
+                StructuralChangeProxy.MoveEntityArchetype.Invoke(_componentDataStore, (Entity*)((byte*)entities + i * sizeof(Entity)), archetypePtr);
             }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void MoveEntityArchetype(EntityArchetype destinationArchetype, Entity entity, int length)
+        {
+            StructuralChangeProxy.MoveEntityArchetype.Invoke(_componentDataStore, &entity, destinationArchetype.GetArchetypePtr());
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -104,6 +109,18 @@ namespace Vella.Events
         public void RemoveComponentEntitiesBatch(UnsafeList* batchInChunkList, int typeIndex)
         {
             StructuralChangeProxy.RemoveComponentEntitiesBatch.Invoke(_componentDataStore, batchInChunkList, typeIndex);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void AddComponentEntity(Entity* entity, int typeIndex)
+        {
+            StructuralChangeProxy.AddComponentEntity.Invoke(_componentDataStore, entity, typeIndex);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void RemoveComponentEntity(Entity* entity, int typeIndex)
+        {
+            StructuralChangeProxy.RemoveComponentEntity.Invoke(_componentDataStore, entity, typeIndex);
         }
 
         [BurstCompile]

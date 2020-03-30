@@ -32,7 +32,9 @@ namespace Vella.Events
         public int ComponentTypeSize;
         public int StartingPoolSize;
 
+        public bool HasComponent;
         public bool HasBuffer;
+
         public ComponentType BufferType;
         public int BufferTypeIndex;
         public int BufferSizeInChunk;
@@ -76,7 +78,7 @@ namespace Vella.Events
         public int EntityCount;
         public bool HasChanged;
 
-        public static EventBatch Create<T>(EntityManager em, ComponentType metaComponent, int startingPoolSize = 0, Allocator allocator = Allocator.Persistent) 
+        public static EventBatch CreateComponentBatch<T>(EntityManager em, ComponentType metaComponent, int startingPoolSize = 0, Allocator allocator = Allocator.Persistent) 
             where T : struct, IComponentData
         {
             return new EventBatch(em,new EventDefinition
@@ -88,7 +90,7 @@ namespace Vella.Events
             }, allocator);
         }
 
-        public static EventBatch Create<T1, T2>(EntityManager em, ComponentType metaComponent, int startingPoolSize = 0, Allocator allocator = Allocator.Persistent)
+        public static EventBatch CreateComponentAndBufferBatch<T1, T2>(EntityManager em, ComponentType metaComponent, int startingPoolSize = 0, Allocator allocator = Allocator.Persistent)
             where T1 : struct, IComponentData
             where T2 : struct, IBufferElementData
         {
@@ -102,6 +104,18 @@ namespace Vella.Events
             }, allocator);
         }
 
+        public static EventBatch CreateBufferBatch<T>(EntityManager em, ComponentType metaComponent, int startingPoolSize = 0, Allocator allocator = Allocator.Persistent)
+            where T : struct, IBufferElementData
+        {
+            return new EventBatch(em, new EventDefinition
+            {
+                MetaType = metaComponent,
+                StartingPoolSize = startingPoolSize,
+                BufferTypeInfo = TypeManager.GetTypeInfo<T>(),
+
+            }, allocator);
+        }
+
         public EventBatch(EntityManager em, EventDefinition definition, Allocator allocator = Allocator.Persistent) : this()
         {
             var componentType = ComponentType.FromTypeIndex(definition.ComponentTypeInfo.TypeIndex);
@@ -109,25 +123,37 @@ namespace Vella.Events
             var bufferLinkType = ComponentType.ReadWrite<BufferLink>();
 
             HasBuffer = definition.BufferTypeInfo.TypeIndex != 0;
+            HasComponent = definition.ComponentTypeInfo.TypeIndex != 0;
 
-            var activeComponents = new List<ComponentType>()
+            var components = new List<ComponentType>()
             {
                 definition.MetaType,
-                componentType,
             };
+
+            if (HasComponent)
+            {
+                components.AddRange(new[] {
+                    componentType,
+                });
+            }
 
             if (HasBuffer)
             {
-                activeComponents.AddRange(new[] {
+                components.AddRange(new[] {
                     bufferType,
                     bufferLinkType,
                 });
             }
 
-            var inactiveComponents = new List<ComponentType>(activeComponents)
+            Archetype = em.CreateArchetype(components.ToArray());
+
+            var inactiveComponents = new List<ComponentType>(components)
             {
                 ComponentType.ReadWrite<Disabled>()
             };
+
+            InactiveArchetype = em.CreateArchetype(inactiveComponents.ToArray());
+
 
             Allocator = allocator;
             ComponentType = componentType;
@@ -141,8 +167,6 @@ namespace Vella.Events
             BufferAlignmentInBytes = definition.BufferTypeInfo.AlignmentInBytes;
             BufferLinkTypeIndex = TypeManager.GetTypeIndex<BufferLink>();
 
-            Archetype = em.CreateArchetype(activeComponents.ToArray());
-            InactiveArchetype = em.CreateArchetype(inactiveComponents.ToArray());
             StartingPoolSize = definition.StartingPoolSize;
 
             ComponentQueue = new EventQueue(ComponentTypeSize, BufferElementSize, allocator);
@@ -245,43 +269,6 @@ namespace Vella.Events
                 else
                 {
                     InactivePartialArchetypeChunk.Add(*archetypeChunkPtr);
-                }
-            }
-        }
-
-        public void SetComponentData()
-        {
-            MultiAppendBuffer.Reader queuedComponents = ComponentQueue.GetComponentReader();
-            var componentOffset = Offsets.ComponentOffset;
-            for (int j = 0; j < Archetype.ChunkCount; j++)
-            {
-                ArchetypeChunk* archetypeChunkPtr = ActiveChunks.GetArchetypeChunkPtr(j);
-                byte* componentsInChunkPtr = (byte*)archetypeChunkPtr->GetChunkPtr() + componentOffset;
-                queuedComponents.CopyTo(componentsInChunkPtr, archetypeChunkPtr->Count * ComponentTypeSize);
-            }
-
-            if (HasBuffer)
-            {
-                MultiAppendBuffer.Reader links = ComponentQueue.GetLinksReader();
-
-                for (int j = 0; j < Archetype.ChunkCount; j++)
-                {
-                    ArchetypeChunk chunk = ((ArchetypeChunk*)ActiveArchetypeChunks.Ptr)[j];
-                    var entityCount = chunk.Count;
-
-                    byte* chunkBufferHeaders = GetBufferPointer(chunk);
-                    byte* chunkLinks = GetBufferLinkPointer(chunk);
-
-                    links.CopyTo(chunkLinks, entityCount * UnsafeUtility.SizeOf<BufferLink>());
-
-                    for (int x = 0; x < entityCount; x++)
-                    {
-                        BufferHeaderProxy* bufferHeader = (BufferHeaderProxy*)(chunkBufferHeaders + x * BufferSizeInChunk);
-                        BufferLink* link = (BufferLink*)(chunkLinks + x * UnsafeUtility.SizeOf<BufferLink>());
-
-                        ref var source = ref ComponentQueue._bufferData.GetBuffer(link->ThreadIndex);
-                        BufferHeaderProxy.Assign(bufferHeader, source.Ptr + link->Offset, link->Length, BufferElementSize, BufferAlignmentInBytes, default, default);
-                    }
                 }
             }
         }

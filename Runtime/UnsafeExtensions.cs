@@ -10,6 +10,12 @@ namespace Vella.Events
 {
     public unsafe static class UnsafeExtensions
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static unsafe bool IsFlagSet<T>(this T flags, T flag) where T : unmanaged, Enum
+        {
+            return (*(int*)&flags & *(int*)&flag) != 0;
+        }
+
         /// <summary>
         /// A faster alternative to using NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray
         /// but has no safetychecks whatsoever.
