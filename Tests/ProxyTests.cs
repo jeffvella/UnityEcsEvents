@@ -9,6 +9,7 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.PerformanceTesting;
 using Vella.Events;
+using Vella.Events.Extensions;
 using Vella.Tests.Attributes;
 using Vella.Tests.Data;
 using Vella.Tests.Fixtures;
@@ -28,21 +29,21 @@ class ProxyTests : ECSTestsFixture
     unsafe public void EntityArchetypeProxy()
     {
         var unityType = typeof(EntityArchetype);
-        AssertTypeSizesAreEqual<UnsafeExtensions.EntityArchetypeProxy>(unityType);
-        AssertInstanceBytesAreEqual<UnsafeExtensions.EntityArchetypeProxy>(unityType);
+        AssertTypeSizesAreEqual<EntityArchetypeProxy>(unityType);
+        AssertInstanceBytesAreEqual<EntityArchetypeProxy>(unityType);
 
         var flags = FieldComparisonFlags.AllowVoidPointerReplacement | FieldComparisonFlags.IgnorePointers;
-        AssertFieldsAreEqual<UnsafeExtensions.EntityArchetypeProxy>(unityType, flags);
+        AssertFieldsAreEqual<EntityArchetypeProxy>(unityType, flags);
     }
 
     [Test, TestCategory(TestCategory.Integrity)]
     unsafe public void ArchetypeChunkProxy()
     {
         var unityType = typeof(ArchetypeChunk);
-        AssertTypeSizesAreEqual<UnsafeExtensions.ArchetypeChunkProxy>(unityType);
-        AssertInstanceBytesAreEqual<UnsafeExtensions.ArchetypeChunkProxy>(unityType);
+        AssertTypeSizesAreEqual<ArchetypeChunkProxy>(unityType);
+        AssertInstanceBytesAreEqual<ArchetypeChunkProxy>(unityType);
 
         var flags = FieldComparisonFlags.AllowVoidPointerReplacement;
-        AssertFieldsAreEqual<UnsafeExtensions.ArchetypeChunkProxy>(unityType, flags);
+        AssertFieldsAreEqual<ArchetypeChunkProxy>(unityType, flags);
     }
 }

@@ -10,6 +10,7 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.PerformanceTesting;
 using Vella.Events;
+using Vella.Events.Extensions;
 using Vella.Tests.Attributes;
 using Vella.Tests.Data;
 using Vella.Tests.Fixtures;

@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
 using System;
 
-namespace Vella.Events
+namespace Vella.Events.Extensions
 {
     public unsafe static class UnsafeExtensions
     {
@@ -196,43 +196,41 @@ namespace Vella.Events
             UnsafeUtility.CopyStructureToPtr(ref component.TypeIndex, UnsafeUtility.AddressOf(ref tmp));
             return (int)((byte*)chunk.GetNativeArray(tmp).GetUnsafeReadOnlyPtr() - chunkPtr);
         }
+    }
 
-        [StructLayout(LayoutKind.Explicit, Size = 16)]
-        public unsafe struct ArchetypeChunkProxy
-        {
-            [FieldOffset(0)]
-            public void* m_Chunk;
+    [StructLayout(LayoutKind.Explicit, Size = 16)]
+    public unsafe struct ArchetypeChunkProxy
+    {
+        [FieldOffset(0)]
+        public void* m_Chunk;
 
-            [FieldOffset(8)]
-            public void* entityComponentStore;
-        }
+        [FieldOffset(8)]
+        public void* entityComponentStore;
+    }
 
-        public unsafe struct EntityArchetypeProxy
-        {
-            [NativeDisableUnsafePtrRestriction]
-            public ArchetypeProxy* Archetype;
+    public unsafe struct EntityArchetypeProxy
+    {
+        [NativeDisableUnsafePtrRestriction]
+        public ArchetypeProxy* Archetype;
 
-            [NativeDisableUnsafePtrRestriction]
-            public void* _DebugComponentStore;
-        }
+        [NativeDisableUnsafePtrRestriction]
+        public void* _DebugComponentStore;
+    }
 
-        public unsafe struct ArchetypeProxy
-        {
-            public ArchetypeChunkDataProxy Chunks;
-        }
+    public unsafe struct ArchetypeProxy
+    {
+        public ArchetypeChunkDataProxy Chunks;
+    }
 
-        public struct ArchetypeChunkDataProxy
-        {
-            public unsafe void** p;
+    public struct ArchetypeChunkDataProxy
+    {
+        public unsafe void** p;
 
-            public unsafe int* data;
+        public unsafe int* data;
 
-            public int Capacity;
+        public int Capacity;
 
-            public int Count;
-        }
-
-
+        public int Count;
     }
 }
 

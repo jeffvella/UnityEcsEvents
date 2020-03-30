@@ -10,6 +10,7 @@ using System.Runtime.CompilerServices;
 using Unity.Collections;
 using System.Diagnostics;
 using Debug = UnityEngine.Debug;
+using Vella.Events.Extensions;
 
 namespace Vella.Events
 {

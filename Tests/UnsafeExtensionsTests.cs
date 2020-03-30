@@ -5,6 +5,7 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Vella.Events;
+using Vella.Events.Extensions;
 using Vella.Tests.Data;
 using Vella.Tests.Fixtures;
 

@@ -1,11 +1,9 @@
 ﻿using Unity.Entities;
 using Unity.Collections.LowLevel.Unsafe;
 using System.Runtime.CompilerServices;
-using System.Collections;
 using System.Diagnostics;
-using static Vella.Events.UnsafeExtensions;
+using Vella.Events.Extensions;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace Vella.Events
 {
