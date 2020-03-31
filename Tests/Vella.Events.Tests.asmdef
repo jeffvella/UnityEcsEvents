@@ -1,0 +1,33 @@
+{
+    "name": "Vella.Events.Tests",
+    "references": [
+        "Unity.PerformanceTesting",
+        "Unity.Entities",
+        "Unity.Mathematics",
+        "Unity.Properties",
+        "Unity.Jobs",
+        "Unity.Burst",
+        "Unity.Collections",
+        "Unity.Entities.Properties",
+        "Unity.Entities.Properties.Tests",
+        "Unity.Entities.Tests",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner",
+        "Vella.Events"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
