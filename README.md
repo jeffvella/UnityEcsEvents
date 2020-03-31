@@ -3,10 +3,10 @@ A event system package for Unity's data oriented design framework.
 
 ### Installation:
 
-- **Option 1: Download**
+- **Option 1: Download**  
 Download the package by clicking the "Clone or Download" button on the GitHub repo then select "Download Zip". Extract it to your project's \Packages\ folder.
 
-- **Option 2: PackageManager  **
+- **Option 2: PackageManager**  
 Click the on the GitHub repo, and copy the URL shown. In PackageManager hit the [+] icon,  select [Add Package from Git URL] and then paste in the URL, [Add]. You will need [Clone or Download] button [Git](https://git-scm.com/ "Git") installed on your machine for this to work. for more info see the  [PackageManager docs](https://docs.unity3d.com/Manual/upm-ui-giturl.html "PackageManager docs").
 
 ### Package Dependencies:
