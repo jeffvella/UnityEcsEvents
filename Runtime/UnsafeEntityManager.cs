@@ -11,21 +11,107 @@ using Unity.Collections;
 using System.Diagnostics;
 using Debug = UnityEngine.Debug;
 using Vella.Events.Extensions;
+using System.Collections.Generic;
 
 namespace Vella.Events
 {
-
     public unsafe struct UnsafeEntityManager
     {
-        private void* _componentDataStore;
+        [NativeDisableUnsafePtrRestriction]
+        private UnsafeDataComponentStore* _componentDataStore;
+        private AtomicSafetyHandle _unsafeSafety;
 
         public UnsafeEntityManager(EntityManager em)
         {
             StructuralChangeProxy.Initialize();
             var entity = em.CreateEntity();
-            var chunk = em.GetChunk(entity);
-            _componentDataStore = chunk.GetComponentDataStorePtr();
+            _componentDataStore = (UnsafeDataComponentStore*)em.GetChunk(entity).GetComponentDataStorePtr();
             em.DestroyEntity(entity);
+            _unsafeSafety = AtomicSafetyHandle.Create();
+        }
+
+        public UnsafeEntityManager(ArchetypeChunk chunk)
+        {
+            StructuralChangeProxy.Initialize();
+            _componentDataStore = (UnsafeDataComponentStore*)chunk.GetComponentDataStorePtr();
+            _unsafeSafety = AtomicSafetyHandle.Create();
+        }
+
+        private struct UnsafeDataComponentStore // Entities 0.8
+        {
+            [NativeDisableUnsafePtrRestriction]
+            public unsafe int* m_VersionByEntity;
+
+            [NativeDisableUnsafePtrRestriction]
+            public unsafe ArchetypeProxy** m_ArchetypeByEntity;
+
+            [NativeDisableUnsafePtrRestriction]
+            public unsafe EntityInChunk* m_EntityInChunkByEntity;
+
+            public struct EntityInChunk
+            {
+                internal unsafe byte* Chunk;
+                internal int IndexInChunk;
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public byte* GetChunkPtr(Entity entity)
+        {
+            return _componentDataStore->m_EntityInChunkByEntity[entity.Index].Chunk;
+        }
+
+        public bool Exists(Entity entity)
+        {
+            bool versionMatches = _componentDataStore->m_VersionByEntity[entity.Index] == entity.Version;
+            bool hasChunk = _componentDataStore->m_EntityInChunkByEntity[entity.Index].Chunk != null;
+            return entity.Index >= 0 && versionMatches && hasChunk;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public T* GetComponentPtr<T>(Entity entity) where T : unmanaged, IComponentData
+        {
+            return (T*)GetComponentPtr(entity, TypeManager.GetTypeIndex<T>());
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ref T GetComponentRef<T>(Entity entity) where T : unmanaged, IComponentData
+        {
+            return ref *(T*)GetComponentPtr(entity, TypeManager.GetTypeIndex<T>());
+        }
+
+        public byte* GetComponentPtr(Entity entity, int typeIndex)
+        {
+            ArchetypeChunkProxy chunkProxy;
+            chunkProxy.m_Chunk = GetChunkPtr(entity);
+            var chunk = *(ArchetypeChunk*)&chunkProxy;
+
+            ArchetypeChunkComponentTypeProxy accessorProxy;
+            accessorProxy.m_TypeIndex = typeIndex;
+            accessorProxy.m_Safety = _unsafeSafety;
+            var accessor = UnsafeUtilityEx.AsRef<ArchetypeChunkComponentType<ChunkHeader>>(&accessorProxy);
+
+            return (byte*)chunk.GetNativeArray(accessor).GetUnsafeReadOnlyPtr();
+        }
+
+        public struct ArchetypeChunkComponentTypeProxy
+        {
+            public int m_TypeIndex;
+            public uint m_GlobalSystemVersion;
+            public bool m_IsReadOnly;
+            public bool m_IsZeroSized;
+            public int m_Length;
+            public int m_MinIndex;
+            public int m_MaxIndex;
+            public AtomicSafetyHandle m_Safety;
+        }
+
+        public EntityArchetype GetArchetype(Entity entity)
+        {
+            EntityArchetypeProxy archetype;
+            archetype.Archetype = _componentDataStore->m_ArchetypeByEntity[entity.Index];
+            archetype._DebugComponentStore = _componentDataStore;
+            return *(EntityArchetype*)&archetype;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -177,7 +263,7 @@ namespace Vella.Events
             {
                 StaticRouter<Delegate> r = new StaticRouter<Delegate>(StructuralChangeType, fieldName);
 
-                // Unity's delegates require an inaccessible pointer argument type, these delegates replace it with void*
+                // Unity's delegates require an inaccessible pointer argument type; these delegates use void* instead
                 Delegate privateTypeParamDelegate = r.Value.GetInvocationList()[0];
                 IntPtr ptr = Marshal.GetFunctionPointerForDelegate(privateTypeParamDelegate);
                 var castDelegate = Unsafe.As<T>(privateTypeParamDelegate);

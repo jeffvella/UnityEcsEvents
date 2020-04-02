@@ -359,9 +359,9 @@ namespace Vella.Events
         /// <summary>
         /// Add an event to the default EventQueue.
         /// </summary>
-        public void Enqueue<T>(T item = default) where T : struct, IComponentData
+        public int Enqueue<T>(T item = default) where T : struct, IComponentData
         {
-            GetQueue<T>().Enqueue(item);
+            return GetQueue<T>().Enqueue(item);
         }
 
         /// <summary>
@@ -371,11 +371,11 @@ namespace Vella.Events
         /// <typeparam name="TBufferData"></typeparam>
         /// <param name="item">the event component</param>
         /// <param name="items">the buffer element data</param>
-        public unsafe void Enqueue<TComponent, TBufferData>(TComponent item, NativeArray<TBufferData> items)
+        public unsafe int Enqueue<TComponent, TBufferData>(TComponent item, NativeArray<TBufferData> items)
             where TComponent : struct, IComponentData
             where TBufferData : unmanaged, IBufferElementData
         {
-            GetQueue<TComponent, TBufferData>().Enqueue(item, items.GetUnsafePtr(), items.Length);
+            return GetQueue<TComponent, TBufferData>().Enqueue(item, items.GetUnsafePtr(), items.Length);
         }
 
         /// <summary>
@@ -386,11 +386,11 @@ namespace Vella.Events
         /// <param name="item">the event component</param>
         /// <param name="items">the buffer element data</param>
         /// <param name="length">the number of buffer elements</param>
-        public unsafe void Enqueue<TComponent, TBufferData>(TComponent item, TBufferData* items, int length)
+        public unsafe int Enqueue<TComponent, TBufferData>(TComponent item, TBufferData* items, int length)
             where TComponent : struct, IComponentData
             where TBufferData : unmanaged, IBufferElementData
         {
-            GetQueue<TComponent, TBufferData>().Enqueue(item, items, length);
+            return GetQueue<TComponent, TBufferData>().Enqueue(item, items, length);
         }
 
         /// <summary>

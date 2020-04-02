@@ -32,6 +32,9 @@ namespace Vella.Events
 
         internal int _componentSize;
         internal int _bufferElementSize;
+        internal int _componentTypeIndex;
+        internal int _bufferTypeIndex;
+
         internal MultiAppendBuffer _metaData;
         internal MultiAppendBuffer _componentData;
         internal MultiAppendBuffer _bufferLinks;
@@ -40,7 +43,7 @@ namespace Vella.Events
         public int Enqueue(T item)
         {
             _componentData.GetBuffer(_threadIndex).Add(item);
-            EventQueue.SetEventMeta(_metaData, _threadIndex, out var id);
+            EventQueue.SetEventMeta(_metaData, _componentTypeIndex, _bufferTypeIndex, _threadIndex, out var id);
             return id;
         }
     }
@@ -54,6 +57,9 @@ namespace Vella.Events
 
         internal int _componentSize;
         internal int _bufferElementSize;
+        internal int _componentTypeIndex;
+        internal int _bufferTypeIndex;
+
         internal MultiAppendBuffer _metaData;
         internal MultiAppendBuffer _componentData;
         internal MultiAppendBuffer _bufferLinks;
@@ -72,7 +78,7 @@ namespace Vella.Events
             });
 
             _bufferData.GetBuffer(_threadIndex).Add(items, UnsafeUtility.SizeOf<T>() * length);
-            EventQueue.SetEventMeta(_metaData, _threadIndex, out var id);
+            EventQueue.SetEventMeta(_metaData, _componentTypeIndex, _bufferTypeIndex, _threadIndex, out var id);
             return id;
         }
 
@@ -114,6 +120,9 @@ namespace Vella.Events
 
         internal int _componentSize;
         internal int _bufferElementSize;
+        internal int _componentTypeIndex;
+        internal int _bufferTypeIndex;
+
         internal MultiAppendBuffer _metaData;
         internal MultiAppendBuffer _componentData;
         internal MultiAppendBuffer _bufferLinks;
@@ -134,7 +143,7 @@ namespace Vella.Events
             });
 
             _bufferData.GetBuffer(_threadIndex).Add(items, UnsafeUtility.SizeOf<TBufferData>() * length);
-            EventQueue.SetEventMeta(_metaData, _threadIndex, out var id);
+            EventQueue.SetEventMeta(_metaData, _componentTypeIndex, _bufferTypeIndex, _threadIndex, out var id);
             return id;
         }
 
@@ -164,15 +173,15 @@ namespace Vella.Events
 
         internal int _componentSize;
         internal int _bufferElementSize;
+        internal int _componentTypeIndex;
+        internal int _bufferTypeIndex;
 
         internal MultiAppendBuffer _metaData;
         internal MultiAppendBuffer _componentData;
         internal MultiAppendBuffer _bufferLinks;
         internal MultiAppendBuffer _bufferData;
 
-        public EventQueue(int componentSize, Allocator allocator) : this(componentSize, 0, allocator) { }
-
-        public EventQueue(int componentSize, int bufferElementSize, Allocator allocator) : this()
+        public EventQueue(int componentTypeIndex, int componentSize, int bufferTypeIndex, int bufferElementSize, Allocator allocator) : this()
         {
             _metaData = new MultiAppendBuffer(allocator, sizeof(EntityEvent));
 
@@ -188,13 +197,20 @@ namespace Vella.Events
             _threadIndex = MultiAppendBuffer.DefaultThreadIndex;
             _componentSize = componentSize;
             _bufferElementSize = bufferElementSize;
+            _componentTypeIndex = componentTypeIndex;
+            _bufferTypeIndex = bufferTypeIndex;
         }
 
-        internal static void SetEventMeta(MultiAppendBuffer metaData, int threadIndex, out int id)
+        internal static void SetEventMeta(MultiAppendBuffer metaData, int componentTypeIndex, int BufferTypeIndex, int threadIndex, out int id)
         {
             ref var metaBuffer = ref metaData.GetBuffer(threadIndex);
-            id = CreateIdHash((int)metaData.Ptr, (int)metaBuffer.Ptr, metaBuffer.Length);
-            metaBuffer.Add(new EntityEvent { Id = id });
+            //id = CreateIdHash((int)metaData.Ptr, (int)metaBuffer.Ptr, metaBuffer.Length);
+            id = CreateIdHash((int)metaData.Ptr, threadIndex, metaBuffer.Length);
+            metaBuffer.Add(new EntityEvent { 
+                Id = id,
+                ComponentTypeIndex = componentTypeIndex,
+                BufferTypeIndex = BufferTypeIndex
+            });
         }
 
         internal static int CreateIdHash(int a, int b, int c)
@@ -207,16 +223,16 @@ namespace Vella.Events
         }
 
         public static EventQueue<T> CreateWithComponent<T>(Allocator allocator) where T : struct, IComponentData
-            => new EventQueue(UnsafeUtility.SizeOf<T>(), allocator).Cast<EventQueue<T>>();
+            => new EventQueue(TypeManager.GetTypeIndex<T>(), UnsafeUtility.SizeOf<T>(), default, default, allocator).Cast<EventQueue<T>>();
 
         public static EventBufferQueue<T> CreateWithBuffer<T>(Allocator allocator) where T : unmanaged, IBufferElementData
-            => new EventQueue(UnsafeUtility.SizeOf<T>(), UnsafeUtility.SizeOf<T>(), allocator).Cast<EventBufferQueue<T>>();
+            => new EventQueue(default, default, TypeManager.GetTypeIndex<T>(), UnsafeUtility.SizeOf<T>(), allocator).Cast<EventBufferQueue<T>>();
 
         public static EventQueue<TComponent, TBufferData> CreateWithComponentAndBuffer<TComponent, TBufferData>(Allocator allocator)
             where TComponent : struct, IComponentData
             where TBufferData : unmanaged, IBufferElementData
         {
-            return new EventQueue(UnsafeUtility.SizeOf<TComponent>(), UnsafeUtility.SizeOf<TComponent>(), allocator)
+            return new EventQueue(UnsafeUtility.SizeOf<TComponent>(), TypeManager.GetTypeIndex<TComponent>(), TypeManager.GetTypeIndex<TBufferData>(), UnsafeUtility.SizeOf<TBufferData>(), allocator)
                 .Cast<EventQueue<TComponent, TBufferData>>();
         }
 

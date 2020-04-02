@@ -169,7 +169,7 @@ namespace Vella.Events
 
             StartingPoolSize = definition.StartingPoolSize;
 
-            ComponentQueue = new EventQueue(ComponentTypeSize, BufferElementSize, allocator);
+            ComponentQueue = new EventQueue(ComponentTypeIndex, ComponentTypeSize, BufferTypeIndex, BufferElementSize, allocator);
             Offsets = GetChunkOffsets(em, Archetype, definition.MetaType, componentType, bufferType, bufferLinkType);
 
             ActiveChunks = new ArchetypeView(Archetype);

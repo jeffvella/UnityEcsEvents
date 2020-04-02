@@ -24,7 +24,7 @@ namespace Vella.Tests.Fixtures
 
             public void Deconstruct(out EventQueue baseQueue, out EventQueue<T1> componentQueue, out EventQueue<T1, T2> bufferQueue)
             {
-                baseQueue = new EventQueue(UnsafeUtility.SizeOf<T1>(), UnsafeUtility.SizeOf<T2>(), _allocator);
+                baseQueue = new EventQueue(TypeManager.GetTypeIndex<T1>(), UnsafeUtility.SizeOf<T1>(), TypeManager.GetTypeIndex<T2>(), UnsafeUtility.SizeOf<T2>(), _allocator);
                 componentQueue = baseQueue.Cast<EventQueue<T1>>();
                 bufferQueue = baseQueue.Cast<EventQueue<T1, T2>>();
             }

@@ -328,7 +328,7 @@ public unsafe class EventQueueTests : EscQueueTestsFixture
     [Test, TestCategory(TestCategory.Functionality)]
     public void ReadsMetaComponents([Values(0, 10)] int componentCount)
     {
-        var baseQueue = new EventQueue(UnsafeUtility.SizeOf<EcsTestData>(), Allocator.Temp);
+        var baseQueue = new EventQueue(TypeManager.GetTypeIndex<EcsTestData>(), UnsafeUtility.SizeOf<EcsTestData>(), TypeManager.GetTypeIndex<EcsIntElement>(), UnsafeUtility.SizeOf<EcsIntElement>(), Allocator.Temp);
         var componentQueue = baseQueue.Cast<EventQueue<EcsTestData>>();
         var source = new NativeArray<EntityEvent>(componentCount, Allocator.Temp);
         var destination = new NativeArray<EntityEvent>(componentCount, Allocator.Temp);
@@ -336,11 +336,14 @@ public unsafe class EventQueueTests : EscQueueTestsFixture
 
         for (int i = 0; i < source.Length; i++)
         {
-            ref var metaBuffer = ref baseQueue._metaData.GetBuffer(-1);
-            var id = EventQueue.CreateIdHash((int)baseQueue._metaData.Ptr, (int)metaBuffer.Ptr, i * sizeof(EntityEvent));
+            const int threadIndex = MultiAppendBuffer.DefaultThreadIndex;
+            ref var metaBuffer = ref baseQueue._metaData.GetBuffer(threadIndex);
+            var id = EventQueue.CreateIdHash((int)baseQueue._metaData.Ptr, threadIndex, i * sizeof(EntityEvent));
             source[i] = new EntityEvent
             {
-                Id = id
+                Id = id,
+                ComponentTypeIndex = baseQueue._componentTypeIndex,
+                BufferTypeIndex = baseQueue._bufferTypeIndex
             };
             set.Add(id);
         }
@@ -360,27 +363,27 @@ public unsafe class EventQueueTests : EscQueueTestsFixture
     [Test, TestCategory(TestCategory.Functionality)]
     public void UniqueEventIds([Values(100000)] int componentCount)
     {
-        var baseQueue = new EventQueue(UnsafeUtility.SizeOf<EcsTestData>(), Allocator.Temp);
+        var baseQueue = new EventQueue(TypeManager.GetTypeIndex<EcsTestData>(), UnsafeUtility.SizeOf<EcsTestData>(), default, default, Allocator.Temp);
         var componentQueue = baseQueue.Cast<EventQueue<EcsTestData>>();
         var set = new HashSet<int>();
 
         var queues = new List<EventQueue>();
         {
-            new EventQueue(0, 0, Allocator.Temp);
-            new EventQueue(1, 0, Allocator.Temp);
-            new EventQueue(4, 0, Allocator.Temp);
-            new EventQueue(8, 0, Allocator.Temp);
-            new EventQueue(0, 1, Allocator.Temp);
-            new EventQueue(0, 4, Allocator.Temp);
-            new EventQueue(0, 8, Allocator.Temp);
-            new EventQueue(12, 0, Allocator.Temp);
-            new EventQueue(236, 0, Allocator.Temp);
-            new EventQueue(512, 0, Allocator.Temp);
-            new EventQueue(4, 4, Allocator.Temp);
-            new EventQueue(16, 16, Allocator.Temp);
-            new EventQueue(236, 32, Allocator.Temp);
-            new EventQueue(1024, 1024, Allocator.Temp);
-            new EventQueue(2048, 2048, Allocator.Temp);
+            new EventQueue(0, 0, 0, 0, Allocator.Temp);
+            new EventQueue(1, 0, 0, 0, Allocator.Temp);
+            new EventQueue(4, 0, 0, 0, Allocator.Temp);
+            new EventQueue(8, 0, 0, 0, Allocator.Temp);
+            new EventQueue(0, 0, 1, 0, Allocator.Temp);
+            new EventQueue(0, 0, 4, 0, Allocator.Temp);
+            new EventQueue(0, 0, 8, 0, Allocator.Temp);
+            new EventQueue(12, 0, 0, 0, Allocator.Temp);
+            new EventQueue(236, 0, 0, 0, Allocator.Temp);
+            new EventQueue(512, 0, 0, 0, Allocator.Temp);
+            new EventQueue(4, 0, 4, 0, Allocator.Temp);
+            new EventQueue(16, 0, 16, 0, Allocator.Temp);
+            new EventQueue(236, 0, 32, 0, Allocator.Temp);
+            new EventQueue(1024, 0, 1024, 0, Allocator.Temp);
+            new EventQueue(2048, 0, 2048, 0, Allocator.Temp);
         };
 
         Assert.DoesNotThrow(() =>

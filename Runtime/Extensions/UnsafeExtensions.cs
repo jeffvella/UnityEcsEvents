@@ -189,11 +189,35 @@ namespace Vella.Events.Extensions
             return (void*)(*(EntityArchetypeProxy*)&archetype).Archetype;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int GetComponentOffsetFromChunkPtr<T>(this EntityManager em, Entity entity) where T : struct, IComponentData
+        {
+            return GetComponentOffsetFromChunkPtr(em, em.GetChunk(entity), TypeManager.GetTypeIndex<T>());
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int GetComponentOffsetFromChunkPtr(this EntityManager em, Entity entity, ComponentType component)
+        {
+            return GetComponentOffsetFromChunkPtr(em, em.GetChunk(entity), component.TypeIndex);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int GetComponentOffsetFromChunkPtr(this EntityManager em, Entity entity, int typeIndex)
+        {
+            return GetComponentOffsetFromChunkPtr(em, em.GetChunk(entity), typeIndex);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static int GetComponentOffsetFromChunkPtr(this EntityManager em, ArchetypeChunk chunk, ComponentType component)
+        {
+            return GetComponentOffsetFromChunkPtr(em, chunk, component.TypeIndex);
+        }
+
+        private static int GetComponentOffsetFromChunkPtr(this EntityManager em, ArchetypeChunk chunk, int typeIndex)
         {
             byte* chunkPtr = *(byte**)&chunk;
             var tmp = em.GetArchetypeChunkComponentType<ChunkHeader>(false);
-            UnsafeUtility.CopyStructureToPtr(ref component.TypeIndex, UnsafeUtility.AddressOf(ref tmp));
+            UnsafeUtility.CopyStructureToPtr(ref typeIndex, UnsafeUtility.AddressOf(ref tmp));
             return (int)((byte*)chunk.GetNativeArray(tmp).GetUnsafeReadOnlyPtr() - chunkPtr);
         }
     }

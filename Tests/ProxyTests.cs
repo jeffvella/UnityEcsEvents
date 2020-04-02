@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using NUnit.Framework;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
@@ -16,6 +17,47 @@ using Vella.Tests.Fixtures;
 
 class ProxyTests : ECSTestsFixture
 {
+    [Test, TestCategory(TestCategory.Integrity)]
+    unsafe public void GetComponentPtr()
+    {
+        World.GetOrCreateSystem<GetComponentPtrSystem>().Update();
+    }
+
+    [DisableAutoCreation, AlwaysUpdateSystem]
+    public unsafe class GetComponentPtrSystem : SystemBase
+    {
+        protected override void OnUpdate()
+        {
+            var entity = EntityManager.CreateEntity(ComponentType.ReadWrite<EcsTestData>());
+            var uem = new UnsafeEntityManager(EntityManager);
+            var inputTypeIndex = TypeManager.GetTypeIndex<EcsTestData>();
+            var missingComponentTypeIndex = TypeManager.GetTypeIndex<EcsTestData2>();
+
+            byte* result1 = null;
+            byte* result2 = null;
+            byte* actualPtr = null;
+
+            Entities.ForEach((Entity e, ref EcsTestData data) =>
+            {
+                result1 = (byte*)uem.GetComponentPtr<EcsTestData>(e);
+                result2 = uem.GetComponentPtr(e, inputTypeIndex);
+                actualPtr = (byte*)UnsafeUtility.AddressOf(ref data);
+
+            }).Run();
+
+            if (result1 == null)
+                Assert.Fail();
+            if (result2 == null)
+                Assert.Fail();
+            if (actualPtr == null)
+                Assert.Fail();
+
+            Assert.AreEqual(*(long*)result1, *(long*)result2);
+            Assert.AreEqual(*(long*)actualPtr, *(long*)result2);
+
+        }
+    }
+
     [Test, TestCategory(TestCategory.Integrity)]
     unsafe public void BufferHeaderProxy()
     {
