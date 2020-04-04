@@ -69,105 +69,783 @@ namespace Performance
 
         }
 
-        [Test, Performance, TestCategory(TestCategory.Performance)]
-        public void CompareToDefaultApproaches([Values(1, 25, 100, 250, 1000, 5000)] int eventsPerArchetype)
+        //[Test, Performance, TestCategory(TestCategory.Performance)]
+        //public void CompareToDefaultApproaches([Values(1, 25, 100, 250, 1000, 5000)] int eventsPerArchetype)
+        //{
+        //    // * I randomized event counts because its an unfair comparison otherwise: ECS Events will not
+        //    // create or destroy any entities if the required amount doesn't change.
+
+        //    var system = World.GetOrCreateSystem<EntityEventSystem>();
+        //    var components = new[]
+        //    {
+        //        ComponentType.ReadWrite<EntityEvent>(),
+        //        ComponentType.ReadWrite<EcsTestData>(),
+        //    };
+        //    var archetype = Manager.CreateArchetype(components);
+        //    var query = Manager.CreateEntityQuery(components);
+
+        //    var groupA = new SampleGroupDefinition
+        //    {
+        //        AggregationType = AggregationType.Average,
+        //        Name = "Default",
+        //        SampleUnit = SampleUnit.Millisecond
+        //    };
+
+        //    var measurements = 100;
+        //    var warmups = 5;
+
+        //    //var sw = new Stopwatch();
+        //    var entities = new NativeList<Entity>(eventsPerArchetype, Allocator.Temp);
+        //    //for (int i = 0; i < measurements; i++)
+        //    //{
+        //    //    entities.ResizeUninitialized(UnityEngine.Random.Range(1, eventsPerArchetype));
+        //    //    if (i < warmups)
+        //    //    {
+        //    //        Manager.CreateEntity(archetype, entities);
+        //    //        entities.Clear();
+        //    //    }
+        //    //    else
+        //    //    {
+        //    //        sw.Restart();
+        //    //        Manager.DestroyEntity(query);
+        //    //        Manager.CreateEntity(archetype, entities);
+        //    //        for (int j = 0; j < entities.Length; j++)
+        //    //        {
+        //    //            Manager.SetComponentData<EcsTestData>(entities[j], default);
+        //    //        }
+        //    //        sw.Stop();
+        //    //        Measure.Custom(groupA, sw.Elapsed.TotalMilliseconds);
+        //    //    }
+        //    //}
+
+        //    //var queue = system.GetQueue<EcsTestData>();
+        //    //var groupB = new SampleGroupDefinition
+        //    //{
+        //    //    AggregationType = AggregationType.Average,
+        //    //    Name = "ECS Events",
+        //    //    SampleUnit = SampleUnit.Millisecond
+        //    //};
+
+        //    //for (int i = 0; i < measurements; i++)
+        //    //{
+        //    //    entities.ResizeUninitialized(UnityEngine.Random.Range(1, eventsPerArchetype));
+        //    //    if (i < warmups)
+        //    //    {
+        //    //        queue.Enqueue(default(EcsTestData));
+        //    //        EventSystem.Update();
+        //    //    }
+        //    //    else
+        //    //    {
+        //    //        sw.Restart();
+        //    //        for (int j = 0; j < entities.Length; j++)
+        //    //        {
+        //    //            queue.Enqueue(default(EcsTestData));
+        //    //        }
+        //    //        EventSystem.Update();
+        //    //        sw.Stop();
+        //    //        Measure.Custom(groupB, sw.Elapsed.TotalMilliseconds);
+        //    //    }
+        //    //}
+
+        //    //var groupC = new SampleGroupDefinition
+        //    //{
+        //    //    AggregationType = AggregationType.Average,
+        //    //    Name = GetName("EntityCommandBuffer"),
+        //    //    SampleUnit = SampleUnit.Millisecond
+        //    //};
+
+        //    //for (int i = 0; i < measurements; i++)
+        //    //{
+        //    //    entities.ResizeUninitialized(UnityEngine.Random.Range(1, eventsPerArchetype));
+        //    //    if (i < warmups)
+        //    //    {
+
+        //    //    }
+        //    //    else
+        //    //    {
+        //    //        var ecb = new EntityCommandBuffer(Allocator.Temp);
+        //    //        sw.Restart();
+        //    //        Manager.DestroyEntity(query);
+        //    //        for (int j = 0; j < entities.Length; j++)
+        //    //        {
+        //    //            ecb.CreateEntity(archetype);
+        //    //        }
+        //    //        ecb.Playback(Manager);
+        //    //        sw.Stop();
+        //    //        Measure.Custom(groupC, sw.Elapsed.TotalMilliseconds);
+        //    //    }
+        //    //}
+
+        //    //var system1 = World.GetOrCreateSystem<BurstECBEventQueueSystem>();
+        //    //system1.Measurements = measurements;
+        //    //system1.Warmups = warmups;
+        //    //system1.EventsPerArchetype = eventsPerArchetype;
+        //    //system1.CreatedEntities = entities;
+        //    //system1.Query = query;
+        //    //system1.Archetype = archetype;
+        //    //system1.Update();
+
+        //    //var system1 = World.GetOrCreateSystem<EventComparisonTestSystem>();
+        //    //system1.Measurements = measurements;
+        //    //system1.Warmups = warmups;
+        //    //system1.EventsPerArchetype = eventsPerArchetype;
+        //    //system1.CreatedEntities = entities;
+        //    //system1.Query = query;
+        //    //system1.Archetype = archetype;
+        //    //system1.ECB_BurstQueued_IndividuallyDestroyed();
+        //    //system1.ECB_BurstQueued_ECBQueryDestroyed();
+
+        //    //var system1 = World.GetOrCreateSystem<EventComparisonTestSystem>();
+        //    //system1.EventsPerArchetype = eventsPerArchetype;
+        //    //system1.Update();
+        //}
+
+        //[Test, Performance]
+        //public void CompareDefaultApproaches([Values(1, 25, 100, 250, 1000, 5000)] int eventsPerArchetype)
+        //{
+        //    var system1 = World.GetOrCreateSystem<EventComparisonTestSystem>();
+        //    system1.EventsPerArchetype = eventsPerArchetype;
+        //    system1.Update();
+        //}
+
+        //[DisableAutoCreation]
+        //public class EventComparisonTestSystem : SystemBase
+        //{
+        //    public EntityCommandBuffer ECB;
+        //    protected override void OnCreate()
+        //    {
+        //        Group = new SampleGroupDefinition
+        //        {
+        //            AggregationType = AggregationType.Average,
+        //            Name = "EntityCommandBuffer QueuedFromJob Destroyed Individually Inside Burst",
+        //            SampleUnit = SampleUnit.Millisecond
+        //        };
+        //        StopWatch = new Stopwatch();
+        //        var components = new[]
+        //        {
+        //            ComponentType.ReadWrite<EntityEvent>(),
+        //            ComponentType.ReadWrite<EcsTestData>(),
+        //        };
+        //        Archetype = EntityManager.CreateArchetype(components);
+        //        Query = EntityManager.CreateEntityQuery(components);
+
+        //        var groupA = new SampleGroupDefinition
+        //        {
+        //            AggregationType = AggregationType.Average,
+        //            Name = "Default",
+        //            SampleUnit = SampleUnit.Millisecond
+        //        };
+
+        //        Measurements = 100;
+        //        Warmups = 5;
+        //        EntityBuffer = new NativeList<Entity>(EventsPerArchetype, Allocator.Temp);
+        //    }
+
+        //    public int Measurements = 100;
+        //    public int Warmups = 5;
+        //    public int EventsPerArchetype = 25;
+        //    public NativeList<Entity> EntityBuffer;
+        //    public SampleGroupDefinition Group;
+        //    public EntityQuery Query;
+        //    public EntityArchetype Archetype;
+        //    public Stopwatch StopWatch;
+
+        //    public enum CreationMethod
+        //    {
+        //        None = 0,
+        //        IndividualArchetype,
+        //        NativeArrayArchetype,
+        //        CreateAndSetComponents,
+        //        ECB_NativeArrayArchetype,
+        //        ECB_Individual,
+        //        ECB_IndividualBurst,
+        //        ECB_IndividualBurstQueued,
+        //    }
+
+        //    public enum DestructionMethod
+        //    {
+        //        None = 0,
+        //        IndividualEntity,
+        //        WithQuery,
+        //        WithNativeArray,
+        //        ECB_WithQuery,
+        //        ECB_Individual,
+        //        ECB_IndividualBurst,
+        //    }
+
+        //    public struct Combination
+        //    {
+        //        public CreationMethod CreationType;
+        //        public DestructionMethod DestructionType;
+        //    }
+
+        //    protected override void OnUpdate()
+        //    {
+        //        var entities = EntityBuffer;
+        //        var archetype = Archetype;
+
+        //        var creationMethods = Enum.GetValues(typeof(CreationMethod)).Cast<CreationMethod>().Skip(1);
+        //        var destructionMethods = Enum.GetValues(typeof(DestructionMethod)).Cast<DestructionMethod>().Skip(1);
+        //        var combinations = creationMethods.SelectMany(a => destructionMethods.Select(b => new Combination
+        //        {
+        //            CreationType = a,
+        //            DestructionType = b,
+        //        })).ToList();
+
+        //        foreach (var combination in combinations)
+        //        {
+        //            Group.Name = $"Create: {combination.CreationType}, Destroy: {combination.DestructionType}";
+
+        //            EntityManager.DestroyEntity(Query);
+
+        //            for (int i = 0; i < Measurements; i++)
+        //            {
+        //                entities.ResizeUninitialized(UnityEngine.Random.Range(1, EventsPerArchetype));
+        //                EntityManager.CreateEntity(archetype, entities);
+
+        //                // Seems to crash he editor if you create and delete from the same ECB.
+        //                var creationECB = new EntityCommandBuffer(Allocator.Temp);
+        //                var destructionECB = new EntityCommandBuffer(Allocator.Temp);
+
+        //                if (i < Warmups)
+        //                {
+        //                    Test(combination, entities, archetype, Query, creationECB, destructionECB);
+        //                }
+        //                else
+        //                {
+        //                    StopWatch.Restart();
+        //                    Test(combination, entities, archetype, Query, creationECB, destructionECB);
+        //                    StopWatch.Stop();
+        //                    Measure.Custom(Group, StopWatch.Elapsed.TotalMilliseconds);
+        //                }
+        //            }
+        //        }
+        //    }
+
+        //    private void Test(Combination combination, NativeList<Entity> entities, EntityArchetype archetype, EntityQuery query, EntityCommandBuffer creationECB, EntityCommandBuffer destructionECB)
+        //    {
+        //        switch (combination.DestructionType)
+        //        {
+        //            case DestructionMethod.IndividualEntity:
+        //                for (int i = 0; i < entities.Length; i++)
+        //                {
+        //                    EntityManager.DestroyEntity(entities[i]);
+        //                }
+        //                break;
+        //            case DestructionMethod.WithQuery:
+        //                EntityManager.DestroyEntity(query);
+        //                break;
+        //            case DestructionMethod.WithNativeArray:
+        //                EntityManager.DestroyEntity(entities);
+        //                break;
+        //            case DestructionMethod.ECB_WithQuery:
+        //                destructionECB.DestroyEntity(query);
+        //                destructionECB.Playback(EntityManager);
+        //                break;
+        //            case DestructionMethod.ECB_Individual:
+        //                for (int i = 0; i < entities.Length; i++)
+        //                {
+        //                    destructionECB.DestroyEntity(entities[i]);
+        //                }
+        //                destructionECB.Playback(EntityManager);
+        //                break;
+        //            case DestructionMethod.ECB_IndividualBurst:
+        //                Job.WithCode(() =>
+        //                {
+        //                    for (int i = 0; i < entities.Length; i++)
+        //                    {
+        //                        destructionECB.DestroyEntity(entities[i]);
+        //                    }
+        //                }).Run();
+        //                destructionECB.Playback(EntityManager);
+        //                break;
+        //        }
+
+        //        switch (combination.CreationType)
+        //        {
+        //            case CreationMethod.IndividualArchetype:
+        //                for (int i = 0; i < entities.Length; i++)
+        //                {
+        //                    EntityManager.CreateEntity(archetype);
+        //                }
+        //                break;
+        //            case CreationMethod.NativeArrayArchetype:
+        //                EntityManager.CreateEntity(archetype, entities);
+        //                break;
+        //            case CreationMethod.CreateAndSetComponents:
+        //                for (int i = 0; i < entities.Length; i++)
+        //                {
+        //                    var entity = EntityManager.CreateEntity();
+        //                    EntityManager.AddComponent<EcsTestData>(entity);
+        //                    EntityManager.AddComponent<EntityEvent>(entity);
+        //                }
+        //                break;
+        //            case CreationMethod.ECB_NativeArrayArchetype:
+        //                creationECB.CreateEntity(archetype);
+        //                creationECB.Playback(EntityManager);
+        //                break;
+        //            case CreationMethod.ECB_Individual:
+        //                for (int i = 0; i < entities.Length; i++)
+        //                {
+        //                    creationECB.CreateEntity(archetype);
+        //                }
+        //                creationECB.Playback(EntityManager);
+        //                break;
+        //            case CreationMethod.ECB_IndividualBurstQueued:
+        //                Job.WithCode(() =>
+        //                {
+        //                    for (int i = 0; i < entities.Length; i++)
+        //                    {
+        //                        creationECB.CreateEntity(archetype);
+        //                    }
+        //                }).Run();
+        //                creationECB.Playback(EntityManager);
+        //                break;
+        //        }
+        //    }
+        //}
+
+        //[DisableAutoCreation]
+        //public class EventComparisonTestSystem : SystemBase
+        //{
+        //    public EntityCommandBuffer ECB;
+        //    protected override void OnCreate()
+        //    {
+        //        Group = new SampleGroupDefinition
+        //        {
+        //            AggregationType = AggregationType.Average,
+        //            Name = "EntityCommandBuffer QueuedFromJob Destroyed Individually Inside Burst",
+        //            SampleUnit = SampleUnit.Millisecond
+        //        };
+
+        //        StopWatch = new Stopwatch();
+        //    }
+
+        //    public int Measurements;
+        //    public int Warmups;
+        //    public int EventsPerArchetype;
+        //    public NativeList<Entity> CreatedEntities;
+        //    public SampleGroupDefinition Group;
+        //    public EntityQuery Query;
+        //    public EntityArchetype Archetype;
+        //    public Stopwatch StopWatch;
+
+        //    public enum CreationMethod
+        //    {
+        //        None = 0,
+        //        IndividualArchetype,
+        //        NativeArrayArchetype,
+        //        CreateAndSetComponents,
+        //        ECB_NativeArrayArchetype,
+        //        ECB_Individual,
+        //        ECB_IndividualBurst,
+        //        ECB_IndividualBurstQueued,
+        //    }
+
+        //    public enum DestructionMethod
+        //    {
+        //        None = 0,
+        //        IndividualEntity,
+        //        WithQuery,
+        //        WithNativeArray,
+        //        ECB_WithQuery,
+        //        ECB_Individual,
+        //        ECB_IndividualBurst,
+        //    }
+
+        //    public struct Combination
+        //    {
+        //        public CreationMethod CreationType;
+        //        public DestructionMethod DestructionType;
+        //    }
+
+        //    protected override void OnUpdate()
+        //    {
+        //        // Unable to compare all combinations with ECS events because delete is handled differently.
+        //        // so its not a fair comparison including the switch statements.
+        //        CompareDefaultMethods();
+
+        //        this.ECB_BurstQueued_ECBQueryDestroyed();
+        //        this.ECB_BurstQueued_EMQueryDestroyed();
+        //        this.ECB_BurstQueued_IndividuallyDestroyed();
+        //        this.EM_BatchArchetypeCreate_QueryDestroyed();
+        //        this.EM_IndividualArchetypeCreate_QueryDestroyed();
+        //    }
+
+        //    public void CompareDefaultMethods()
+        //    {
+        //        var entities = CreatedEntities;
+        //        var archetype = Archetype;
+
+        //        var creationMethods = Enum.GetValues(typeof(CreationMethod)).Cast<CreationMethod>().Skip(1);
+        //        var destructionMethods = Enum.GetValues(typeof(DestructionMethod)).Cast<DestructionMethod>().Skip(1);
+        //        var combinations = creationMethods.SelectMany(a => destructionMethods.Select(b => new Combination {
+        //             CreationType = a,
+        //             DestructionType = b, 
+        //        })).ToList();
+
+        //        foreach(var combination in combinations)
+        //        {
+        //            Group.Name = $"Create: {combination.CreationType}, Destroy: {combination.DestructionType}";
+
+        //            EntityManager.DestroyEntity(Query);
+
+        //            for (int i = 0; i < Measurements; i++)
+        //            {
+        //                entities.ResizeUninitialized(UnityEngine.Random.Range(1, EventsPerArchetype));
+        //                EntityManager.CreateEntity(archetype, entities);
+
+        //                // Seems to crash he editor if you create and delete from the same ECB.
+        //                var creationECB = new EntityCommandBuffer(Allocator.Temp);
+        //                var destructionECB = new EntityCommandBuffer(Allocator.Temp);
+
+        //                if (i < Warmups)
+        //                {
+        //                    Test(combination, entities, archetype, Query, creationECB, destructionECB);
+        //                }
+        //                else
+        //                {
+        //                    StopWatch.Restart();
+        //                    Test(combination, entities, archetype, Query, creationECB, destructionECB);
+        //                    StopWatch.Stop();
+        //                    Measure.Custom(Group, StopWatch.Elapsed.TotalMilliseconds);
+        //                }
+        //            }
+        //        }
+        //    }
+
+        //    private void Test(Combination combination, NativeList<Entity> entities, EntityArchetype archetype, EntityQuery query, EntityCommandBuffer creationECB, EntityCommandBuffer destructionECB)
+        //    {
+        //        switch (combination.DestructionType)
+        //        {
+        //            case DestructionMethod.IndividualEntity:
+        //                for (int i = 0; i < entities.Length; i++)
+        //                {
+        //                    EntityManager.DestroyEntity(entities[i]);
+        //                }
+        //                break;
+        //            case DestructionMethod.WithQuery:
+        //                EntityManager.DestroyEntity(query);
+        //                break;
+        //            case DestructionMethod.WithNativeArray:
+        //                EntityManager.DestroyEntity(entities);
+        //                break;
+        //            case DestructionMethod.ECB_WithQuery:
+        //                destructionECB.DestroyEntity(query);
+        //                destructionECB.Playback(EntityManager);
+        //                break;
+        //            case DestructionMethod.ECB_Individual:
+        //                for (int i = 0; i < entities.Length; i++)
+        //                {
+        //                    destructionECB.DestroyEntity(entities[i]);
+        //                }
+        //                destructionECB.Playback(EntityManager);
+        //                break;
+        //            case DestructionMethod.ECB_IndividualBurst:
+        //                Job.WithCode(() =>
+        //                {
+        //                    for (int i = 0; i < entities.Length; i++)
+        //                    {
+        //                        destructionECB.DestroyEntity(entities[i]);
+        //                    }
+        //                }).Run();
+        //                destructionECB.Playback(EntityManager);
+        //                break;
+        //        }
+
+        //        switch (combination.CreationType)
+        //        {
+        //            case CreationMethod.IndividualArchetype:
+        //                for (int i = 0; i < entities.Length; i++)
+        //                {
+        //                    EntityManager.CreateEntity(archetype);
+        //                }
+        //                break;
+        //            case CreationMethod.NativeArrayArchetype:
+        //                EntityManager.CreateEntity(archetype, entities);
+        //                break;
+        //            case CreationMethod.CreateAndSetComponents:
+        //                for (int i = 0; i < entities.Length; i++)
+        //                {
+        //                    var entity = EntityManager.CreateEntity();
+        //                    EntityManager.AddComponent<EcsTestData>(entity);
+        //                    EntityManager.AddComponent<EntityEvent>(entity);
+        //                }
+        //                break;
+        //            case CreationMethod.ECB_NativeArrayArchetype:
+        //                creationECB.CreateEntity(archetype);
+        //                creationECB.Playback(EntityManager);
+        //                break;
+        //            case CreationMethod.ECB_Individual:
+        //                for (int i = 0; i < entities.Length; i++)
+        //                {
+        //                    creationECB.CreateEntity(archetype);
+        //                }
+        //                creationECB.Playback(EntityManager);
+        //                break;
+        //            case CreationMethod.ECB_IndividualBurstQueued:
+        //                Job.WithCode(() =>
+        //                {
+        //                    for (int i = 0; i < entities.Length; i++)
+        //                    {
+        //                        creationECB.CreateEntity(archetype);
+        //                    }
+        //                }).Run();
+        //                creationECB.Playback(EntityManager);
+        //                break;
+        //        }
+        //    }
+
+        //    public void ECB_BurstQueued_IndividuallyDestroyed()
+        //    {
+        //        var entities = CreatedEntities;
+        //        var archetype = Archetype;
+
+        //        Group.Name = nameof(ECB_BurstQueued_IndividuallyDestroyed);
+        //        EntityManager.DestroyEntity(Query);
+
+        //        for (int i = 0; i < Measurements; i++)
+        //        {
+        //            entities.ResizeUninitialized(UnityEngine.Random.Range(1, EventsPerArchetype));
+
+        //            if (i < Warmups)
+        //            {
+
+        //            }
+        //            else
+        //            {
+        //                var ecb1 = new EntityCommandBuffer(Allocator.Temp);
+        //                var ecb2 = new EntityCommandBuffer(Allocator.Temp);
+
+        //                // If both use the same ECB the editor is crashing.
+
+        //                StopWatch.Restart();
+
+        //                Job.WithCode(() =>
+        //                {
+        //                    for (int j = 0; j < entities.Length; j++)
+        //                    {
+        //                        ecb1.DestroyEntity(entities[j]);
+        //                    }
+
+        //                    for (int j = 0; j < entities.Length; j++)
+        //                    {
+        //                        ecb2.CreateEntity(archetype);
+        //                    }
+
+        //                }).Run();
+
+        //                ecb1.Playback(EntityManager);
+        //                ecb2.Playback(EntityManager);
+        //                StopWatch.Stop();
+        //                Measure.Custom(Group, StopWatch.Elapsed.TotalMilliseconds);
+        //            }
+        //        }
+        //    }
+
+        //    public void ECB_BurstQueued_EMQueryDestroyed()
+        //    {
+        //        var entities = CreatedEntities;
+        //        var archetype = Archetype;
+
+        //        Group.Name = nameof(ECB_BurstQueued_EMQueryDestroyed);
+        //        EntityManager.DestroyEntity(Query);
+
+        //        for (int i = 0; i < Measurements; i++)
+        //        {
+        //            entities.ResizeUninitialized(UnityEngine.Random.Range(1, EventsPerArchetype));
+
+        //            if (i < Warmups)
+        //            {
+
+        //            }
+        //            else
+        //            {
+        //                var ecb1 = new EntityCommandBuffer(Allocator.Temp);
+
+        //                StopWatch.Restart();
+        //                EntityManager.DestroyEntity(Query);
+
+        //                Job.WithCode(() =>
+        //                {
+        //                    for (int j = 0; j < entities.Length; j++)
+        //                    {
+        //                        ecb1.CreateEntity(archetype);
+        //                    }
+
+        //                }).Run();
+
+        //                ecb1.Playback(EntityManager);
+        //                StopWatch.Stop();
+        //                Measure.Custom(Group, StopWatch.Elapsed.TotalMilliseconds);
+        //            }
+        //        }
+        //    }
+
+        //    public void EM_BatchArchetypeCreate_QueryDestroyed()
+        //    {
+        //        var entities = CreatedEntities;
+        //        var archetype = Archetype;
+
+        //        Group.Name = nameof(EM_BatchArchetypeCreate_QueryDestroyed);
+        //        EntityManager.DestroyEntity(Query);
+
+        //        for (int i = 0; i < Measurements; i++)
+        //        {
+        //            entities.ResizeUninitialized(UnityEngine.Random.Range(1, EventsPerArchetype));
+
+        //            if (i < Warmups)
+        //            {
+
+        //            }
+        //            else
+        //            {
+
+        //                StopWatch.Restart();
+        //                EntityManager.DestroyEntity(Query);
+        //                EntityManager.CreateEntity(archetype, entities);
+        //                StopWatch.Stop();
+        //                Measure.Custom(Group, StopWatch.Elapsed.TotalMilliseconds);
+        //            }
+        //        }
+        //    }
+
+        //    public void EM_IndividualArchetypeCreate_QueryDestroyed()
+        //    {
+        //        var entities = CreatedEntities;
+        //        var archetype = Archetype;
+
+        //        Group.Name = nameof(EM_BatchArchetypeCreate_QueryDestroyed);
+        //        EntityManager.DestroyEntity(Query);
+
+        //        for (int i = 0; i < Measurements; i++)
+        //        {
+        //            entities.ResizeUninitialized(UnityEngine.Random.Range(1, EventsPerArchetype));
+
+        //            if (i < Warmups)
+        //            {
+
+        //            }
+        //            else
+        //            {
+
+        //                StopWatch.Restart();
+        //                EntityManager.DestroyEntity(Query);
+        //                for (int j = 0; j < entities.Length; j++)
+        //                {
+        //                    EntityManager.CreateEntity(archetype);
+        //                }
+        //                EntityManager.CreateEntity(archetype, entities);
+        //                StopWatch.Stop();
+        //                Measure.Custom(Group, StopWatch.Elapsed.TotalMilliseconds);
+        //            }
+        //        }
+        //    }
+
+        //    public void ECB_BurstQueued_ECBQueryDestroyed()
+        //    {
+        //        var entities = CreatedEntities;
+        //        var archetype = Archetype;
+
+        //        Group.Name =  nameof(ECB_BurstQueued_ECBQueryDestroyed);
+        //        EntityManager.DestroyEntity(Query);
+
+        //        for (int i = 0; i < Measurements; i++)
+        //        {
+        //            entities.ResizeUninitialized(UnityEngine.Random.Range(1, EventsPerArchetype));
+
+        //            if (i < Warmups)
+        //            {
+
+        //            }
+        //            else
+        //            {
+        //                var ecb1 = new EntityCommandBuffer(Allocator.Temp);
+
+        //                StopWatch.Restart();
+        //                ecb1.DestroyEntity(Query);
+
+        //                Job.WithCode(() =>
+        //                {
+        //                    for (int j = 0; j < entities.Length; j++)
+        //                    {
+        //                        ecb1.CreateEntity(archetype);
+        //                    }
+
+        //                }).Run();
+
+        //                ecb1.Playback(EntityManager);
+        //                StopWatch.Stop();
+        //                Measure.Custom(Group, StopWatch.Elapsed.TotalMilliseconds);
+        //            }
+        //        }
+        //    }
+        //}
+
+        [DisableAutoCreation]
+        public class BurstECBEventQueueSystem : SystemBase
         {
-            var system = World.GetOrCreateSystem<EntityEventSystem>();
-            var components = new[]
+            public EntityCommandBuffer ECB;
+            protected override void OnCreate()
             {
-                ComponentType.ReadWrite<EntityEvent>(),
-                ComponentType.ReadWrite<EcsTestData>(),
-            };
-            var archetype = Manager.CreateArchetype(components);
-            var query = Manager.CreateEntityQuery(components);
-
-            var groupA = new SampleGroupDefinition
-            {
-                AggregationType = AggregationType.Average,
-                Name = GetName($"Default"),
-                SampleUnit = SampleUnit.Millisecond
-            };
-
-            var measurements = 25;
-            var warmups = 5;
-
-            var sw = new Stopwatch();
-            var entities = new NativeList<Entity>(eventsPerArchetype, Allocator.Temp);
-            for (int i = 0; i < measurements; i++)
-            {
-                if (i < warmups)
+                Group = new SampleGroupDefinition
                 {
-                    Manager.CreateEntity(archetype, entities);
-                    entities.Clear();
-                }
-                else
-                {
-                    sw.Restart();
-                    Manager.DestroyEntity(query);
-                    Manager.CreateEntity(archetype, entities);
-                    for (int j = 0; j < entities.Length; j++)
-                    {
-                        Manager.SetComponentData<EcsTestData>(entities[j], default);
-                    }
-                    sw.Stop();
-                    Measure.Custom(groupA, sw.Elapsed.TotalMilliseconds);
-                }
+                    AggregationType = AggregationType.Average,
+                    Name = "EntityCommandBuffer QueuedFromJob",
+                    SampleUnit = SampleUnit.Millisecond
+                };
+
+                StopWatch = new Stopwatch();
             }
 
-            var queue = system.GetQueue<EcsTestData>();
-            var groupB = new SampleGroupDefinition
-            {
-                AggregationType = AggregationType.Average,
-                Name = GetName("ECS Events"),
-                SampleUnit = SampleUnit.Millisecond
-            };
+            public int Measurements { get; set; }
 
-            for (int i = 0; i < measurements; i++)
+            public int Warmups { get; set; }
+
+            public int EventsPerArchetype { get; set; }
+
+            public NativeList<Entity> CreatedEntities { get; set; }
+
+            public SampleGroupDefinition Group { get; private set; }
+
+            public EntityQuery Query { get; set; }
+
+            public EntityArchetype Archetype { get; set; }
+
+            public Stopwatch StopWatch { get; private set; }
+
+            protected override void OnUpdate()
             {
-                if (i < warmups)
+                var entities = CreatedEntities;
+                var archetype = Archetype;
+
+                for (int i = 0; i < Measurements; i++)
                 {
-                    queue.Enqueue(default(EcsTestData));
-                    EventSystem.Update();
-                }
-                else
-                {
-                    sw.Restart();
-                    for (int j = 0; j < entities.Length; j++)
+                    entities.ResizeUninitialized(UnityEngine.Random.Range(1, EventsPerArchetype));
+
+                    if (i < Warmups)
                     {
-                        queue.Enqueue(default(EcsTestData));
+
                     }
-                    EventSystem.Update();
-                    sw.Stop();
-                    Measure.Custom(groupB, sw.Elapsed.TotalMilliseconds);
-                }
-            }
-
-            var groupC = new SampleGroupDefinition
-            {
-                AggregationType = AggregationType.Average,
-                Name = GetName("EntityCommandBuffer"),
-                SampleUnit = SampleUnit.Millisecond
-            };
-
-            for (int i = 0; i < measurements; i++)
-            {
-                if (i < warmups)
-                {
-
-                }
-                else
-                {
-                    var ecb = new EntityCommandBuffer(Allocator.Temp);
-                    sw.Restart();
-                    Manager.DestroyEntity(query);
-                    for (int j = 0; j < entities.Length; j++)
+                    else
                     {
-                        var e = ecb.CreateEntity();
-                        ecb.SetComponent<EcsTestData>(e, default);
+                        var ecb = new EntityCommandBuffer(Allocator.Temp);
+                        StopWatch.Restart();
+                        EntityManager.DestroyEntity(Query);
+
+                        Job.WithCode(() =>
+                        {
+                            for (int j = 0; j < entities.Length; j++)
+                            {
+                                ecb.CreateEntity(archetype);
+                            }
+
+                        }).Run();
+
+                        ecb.Playback(EntityManager);
+                        StopWatch.Stop();
+                        Measure.Custom(Group, StopWatch.Elapsed.TotalMilliseconds);
                     }
-                    ecb.Playback(Manager);
-                    sw.Stop();
-                    Measure.Custom(groupC, sw.Elapsed.TotalMilliseconds);
                 }
             }
         }
