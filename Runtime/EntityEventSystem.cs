@@ -21,7 +21,7 @@ namespace Vella.Events
         internal struct EventSystemData
         {
             public UnsafeHashMap<int, int> TypeIndexToBatchMap;
-            public NativeList<EventBatch> Batches;
+            public UnsafeList<EventBatch> Batches;
             public UnsafeEntityManager UnsafeEntityManager;
             public StructuralChangeQueue StructuralChanges;
             public ComponentType EventComponent;
@@ -37,7 +37,7 @@ namespace Vella.Events
             const int StartingBatchCount = 10;
 
             data.TypeIndexToBatchMap = new UnsafeHashMap<int, int>(StartingBatchCount, Allocator.Persistent);
-            data.Batches = new NativeList<EventBatch>(StartingBatchCount, Allocator.Persistent);
+            data.Batches = new UnsafeList<EventBatch>(StartingBatchCount, Allocator.Persistent);
             data.UnsafeEntityManager = new UnsafeEntityManager(EntityManager);
             data.StructuralChanges = new StructuralChangeQueue(data.UnsafeEntityManager, Allocator.Persistent);
             data.EventComponent = ComponentType.ReadOnly<EntityEvent>();
@@ -67,7 +67,7 @@ namespace Vella.Events
         internal void ProcessQueuedEvents()
         {
             var batchCount = Data.Batches.Length;
-            var batchesPtr = (byte*)Data.Batches.GetUnsafePtr();
+            var batchesPtr = (byte*)Data.Batches.Ptr;
             var dataPtr = (byte*)_dataPtr;
 
             Job.WithCode(() =>
@@ -253,7 +253,7 @@ namespace Vella.Events
         internal void SetComponents()
         {
             var batchCount = Data.Batches.Length;
-            var batchesPtr = (byte*)Data.Batches.GetUnsafePtr();
+            var batchesPtr = (byte*)Data.Batches.Ptr;
 
             Job.WithCode(() =>
             {
@@ -327,7 +327,7 @@ namespace Vella.Events
         internal void UpdateChunkCollections() // This is just seperated out for benchmarking
         {
             var batchCount = Data.Batches.Length;
-            var batchesPtr = (byte*)Data.Batches.GetUnsafePtr();
+            var batchesPtr = (byte*)Data.Batches.Ptr;
 
             Job.WithCode(() =>
             {
@@ -343,7 +343,7 @@ namespace Vella.Events
         internal void ClearQueues() // This is just seperated out for benchmarking
         {
             var batchCount = Data.Batches.Length;
-            var batchesPtr = (byte*)Data.Batches.GetUnsafePtr();
+            var batchesPtr = (byte*)Data.Batches.Ptr;
 
             Job.WithCode(() =>
             {
@@ -451,12 +451,12 @@ namespace Vella.Events
                 });
 
                 index = Data.BatchCount++;
-                Data.Batches.ResizeUninitialized(Data.BatchCount);
-                Data.Batches[index] = batch;
+                Data.Batches.Resize(Data.BatchCount);
+                Data.Batches.Ptr[index] = batch;
                 Data.TypeIndexToBatchMap[key] = index;
                 return (batch, true);
             }
-            return (Data.Batches[index], false);
+            return (Data.Batches.Ptr[index], false);
         }
 
         private int GetKey(int typeIndex1, int typeIndex2)
@@ -470,7 +470,7 @@ namespace Vella.Events
         protected override void OnDestroy()
         {
             for (int i = 0; i < Data.Batches.Length; i++)
-                Data.Batches[i].Dispose();
+                Data.Batches.Ptr[i].Dispose();
 
             Data.Batches.Dispose();
             Data.TypeIndexToBatchMap.Dispose();
