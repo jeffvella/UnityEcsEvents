@@ -37,6 +37,9 @@ namespace Vella.Events
             _unsafeSafety = AtomicSafetyHandle.Create();
         }
 
+// CS0649: Field is never assigned to, and will always have its default value 
+#pragma warning disable CS0649
+
         private struct UnsafeDataComponentStore // Entities 0.8
         {
             [NativeDisableUnsafePtrRestriction]
@@ -54,6 +57,8 @@ namespace Vella.Events
                 internal int IndexInChunk;
             }
         }
+
+#pragma warning restore CS0649
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public byte* GetChunkPtr(Entity entity)
