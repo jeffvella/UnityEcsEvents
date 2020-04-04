@@ -222,6 +222,9 @@ namespace Vella.Events.Extensions
         }
     }
 
+// CS0649: Field is never assigned to, and will always have its default value 
+#pragma warning disable CS0649
+
     [StructLayout(LayoutKind.Explicit, Size = 16)]
     public unsafe struct ArchetypeChunkProxy
     {
@@ -256,5 +259,7 @@ namespace Vella.Events.Extensions
 
         public int Count;
     }
+
+#pragma warning restore CS0649
 }
 
