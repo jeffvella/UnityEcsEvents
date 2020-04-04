@@ -1,7 +1,7 @@
 {
   "name": "com.vella.events",
   "description": "An event system for Unity's data oiented design framework.",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "unity": "2019.3",
   "displayName": "ECS Events",
   "dependencies": {
