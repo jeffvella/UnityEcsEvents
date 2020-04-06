@@ -204,7 +204,6 @@ namespace Vella.Events
         internal static void SetEventMeta(MultiAppendBuffer metaData, int componentTypeIndex, int BufferTypeIndex, int threadIndex, out int id)
         {
             ref var metaBuffer = ref metaData.GetBuffer(threadIndex);
-            //id = CreateIdHash((int)metaData.Ptr, (int)metaBuffer.Ptr, metaBuffer.Length);
             id = CreateIdHash((int)metaData.Ptr, threadIndex, metaBuffer.Length);
             metaBuffer.Add(new EntityEvent { 
                 Id = id,

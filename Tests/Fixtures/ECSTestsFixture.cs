@@ -14,6 +14,7 @@ using Vella.Tests.Data;
 
 namespace Vella.Tests.Fixtures
 {
+    [DisableAutoCreation]
     public class EmptySystem : SystemBase
     {
         new public EntityQuery GetEntityQuery(params EntityQueryDesc[] queriesDesc)
