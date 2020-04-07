@@ -37,7 +37,12 @@ namespace Vella.Events
             _unsafeSafety = AtomicSafetyHandle.Create();
         }
 
-// CS0649: Field is never assigned to, and will always have its default value 
+        public void RefreshSafety()
+        {
+            _unsafeSafety = AtomicSafetyHandle.Create();
+        }
+
+        // CS0649: Field is never assigned to, and will always have its default value 
 #pragma warning disable CS0649
 
         private struct UnsafeDataComponentStore // Entities 0.8
@@ -76,27 +81,60 @@ namespace Vella.Events
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public T* GetComponentPtr<T>(Entity entity) where T : unmanaged, IComponentData
         {
-            return (T*)GetComponentPtr(entity, TypeManager.GetTypeIndex<T>());
+            return (T*)GetComponentPtr(GetChunkPtr(entity), TypeManager.GetTypeIndex<T>());
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public T* GetComponentPtr<T>(Entity entity, int typeIndex) where T : unmanaged, IComponentData
+        {
+            return (T*)GetComponentPtr(GetChunkPtr(entity), typeIndex);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public byte* GetComponentPtr(Entity entity, int typeIndex)
+        {
+            return GetComponentPtr(GetChunkPtr(entity), typeIndex);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ref T GetComponentRef<T>(Entity entity) where T : unmanaged, IComponentData
         {
-            return ref *(T*)GetComponentPtr(entity, TypeManager.GetTypeIndex<T>());
+            return ref *(T*)GetComponentPtr(GetChunkPtr(entity), TypeManager.GetTypeIndex<T>());
         }
 
-        public byte* GetComponentPtr(Entity entity, int typeIndex)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ref T GetComponentRef<T>(Entity entity, int typeIndex) where T : unmanaged, IComponentData
         {
-            ArchetypeChunkProxy chunkProxy;
-            chunkProxy.m_Chunk = GetChunkPtr(entity);
-            var chunk = *(ArchetypeChunk*)&chunkProxy;
+            return ref *(T*)GetComponentPtr(GetChunkPtr(entity), typeIndex);
+        }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public T* GetComponentPtr<T>(ArchetypeChunk chunk) where T : unmanaged, IComponentData
+        {
+            return (T*)GetComponentPtr(chunk, TypeManager.GetTypeIndex<T>());
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ref T GetComponentRef<T>(ArchetypeChunk chunk) where T : unmanaged, IComponentData
+        {
+            return ref *(T*)GetComponentPtr(chunk, TypeManager.GetTypeIndex<T>());
+        }
+
+        public byte* GetComponentPtr(ArchetypeChunk chunk, int typeIndex)
+        {
             ArchetypeChunkComponentTypeProxy accessorProxy;
             accessorProxy.m_TypeIndex = typeIndex;
-            accessorProxy.m_Safety = _unsafeSafety;
+            accessorProxy.m_Safety = AtomicSafetyHandle.Create();
             var accessor = UnsafeUtilityEx.AsRef<ArchetypeChunkComponentType<ChunkHeader>>(&accessorProxy);
-
             return (byte*)chunk.GetNativeArray(accessor).GetUnsafeReadOnlyPtr();
+        }
+
+        public byte* GetComponentPtr(void* chunkPtr, int typeIndex)
+        {
+            ArchetypeChunkProxy chunkProxy;
+            chunkProxy.m_Chunk = chunkPtr;
+            var chunk = *(ArchetypeChunk*)&chunkProxy;
+            return GetComponentPtr(chunk, typeIndex);
         }
 
         public struct ArchetypeChunkComponentTypeProxy

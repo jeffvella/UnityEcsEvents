@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using System;
 using UnityEngine;
 using Unity.Jobs.LowLevel.Unsafe;
+using System.Diagnostics;
 
 namespace Vella.Events
 {

@@ -785,7 +785,6 @@ namespace Performance
         [DisableAutoCreation]
         public class BurstECBEventQueueSystem : SystemBase
         {
-            public EntityCommandBuffer ECB;
             protected override void OnCreate()
             {
                 Group = new SampleGroupDefinition
