@@ -14,6 +14,7 @@ namespace Vella.Events
     /// Contains all type and scheduling information for a specific event.
     /// </summary>
     [DebuggerDisplay("{ComponentType} Count={EntityCount}")]
+    [DebuggerTypeProxy(typeof(EventBatchDebugView))]
     internal unsafe struct EventBatch
     {
         public struct EventDefinition
@@ -290,6 +291,19 @@ namespace Vella.Events
             InactivePartialArchetypeChunk.Dispose();
             ActivePartialArchetypeChunk.Dispose();
         }
+    }
+
+    internal sealed class EventBatchDebugView
+    {
+        private EventBatch _entityEventSystem;
+
+        public EventBatchDebugView(EventBatch input)
+        {
+            _entityEventSystem = input;
+        }
+
+        public bool HasBuffer => _entityEventSystem.HasBuffer;
+        public bool HasComponent => _entityEventSystem.HasComponent;
     }
 
 }

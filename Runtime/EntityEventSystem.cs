@@ -7,11 +7,13 @@ using Unity.Mathematics;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
 using Vella.Events.Extensions;
+using System.Linq;
 
 namespace Vella.Events
 {
 
     [DisableAutoCreation]
+    [DebuggerTypeProxy(typeof(EntityEventSystemDebugView))]
     public unsafe class EntityEventSystem : SystemBase
     {
         private void* _dataPtr;
@@ -34,10 +36,8 @@ namespace Vella.Events
         protected override void OnCreate()
         {
             EventSystemData data = default;
-            const int StartingBatchCount = 10;
-
-            data.TypeIndexToBatchMap = new UnsafeHashMap<int, int>(StartingBatchCount, Allocator.Persistent);
-            data.Batches = new UnsafeList<EventBatch>(StartingBatchCount, Allocator.Persistent);
+            data.TypeIndexToBatchMap = new UnsafeHashMap<int, int>(1, Allocator.Persistent);
+            data.Batches = new UnsafeList<EventBatch>(1, Allocator.Persistent);
             data.UnsafeEntityManager = new UnsafeEntityManager(EntityManager);
             data.StructuralChanges = new StructuralChangeQueue(data.UnsafeEntityManager, Allocator.Persistent);
             data.EventComponent = ComponentType.ReadOnly<EntityEvent>();
@@ -477,6 +477,47 @@ namespace Vella.Events
             Data.StructuralChanges.Dispose();
             UnsafeUtility.Free(_dataPtr, Allocator.Persistent);
         }
+
+    }
+
+    public sealed class EntityEventSystemDebugView
+    {
+        private EntityEventSystem _actual;
+
+        public EntityEventSystemDebugView(EntityEventSystem input)
+        {
+            _actual = input;
+        }
+
+        internal unsafe EventBatch[] Batches
+        {
+            get
+            {
+                var length = _actual.Data.Batches.Length;
+                var result = new EventBatch[length];
+                for (int i = 0; i < length; i++)
+                    result[i] = _actual.Data.Batches.Ptr[i];
+                return result;
+            }
+        }
+
+        internal unsafe EventQueue[] ComponentQueues
+        {
+            get
+            {
+                var length = _actual.Data.Batches.Length;
+                var result = new EventQueue[length];
+                for (int i = 0; i < length; i++)
+                    result[i] = _actual.Data.Batches.Ptr[i].ComponentQueue;
+                return result;
+            }
+        }
+
+        public ComponentType EventComponent => _actual.Data.EventComponent;
+
+        public int BatchCount => _actual.Data.BatchCount;
+
+        public int QueuedEventCount => Batches.Sum(b => b.ComponentQueue.Count());
 
     }
 
