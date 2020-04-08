@@ -1,5 +1,16 @@
+
 # UnityEcsEvents
-A event system package for Unity's data oriented design framework.
+An event system package for Unity's data oriented design framework.
+
+#### What is it?
+
+The concept of Entity Events in Entity Component Systems (ECS) is fairly common. Used mostly for short-lived/one frame messaging, its a convenient way of triggering functionality. In Unity this can be accomplished easily by creating an entity and assigning components to it. 
+
+#### Then why do i need a fancy package?
+
+This has many optimizations that allow for creating events faster than you could otherwise. It also has many additional features such as parallel support, attaching DynamicBuffers to events!
+
+[Check out the example project here](https://github.com/jeffvella/UnityEcsEvents.Example)
 
 ### Installation:
 
@@ -20,3 +31,7 @@ Click the on the GitHub repo, and copy the URL shown. In PackageManager hit the 
 ### Supported Editors:
 
   * 2019.3.6xx+
+ 
+### Acknowledgements
+
+Consider checking out the project that inspired this work here:  **[com.bovinelabs.entities](https://github.com/tertle/com.bovinelabs.entities)** and the Unity forums thread on event systems: [here](https://forum.unity.com/threads/event-system.779711/#post-5677585).
