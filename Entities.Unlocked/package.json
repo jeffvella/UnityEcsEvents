@@ -1,0 +1,10 @@
+{
+  "name": "com.vella.entities.unlocked",
+  "displayName": "Entities Unlocked",
+  "version": "0.0.2",
+  "unity": "2020.2",
+  "description": "Exposes useful internal functionality in the Entities package.",
+  "dependencies": {
+    "com.unity.entities": "0.11.1-preview.4"
+  }
+}

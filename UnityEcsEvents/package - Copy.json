@@ -1,0 +1,12 @@
+{
+  "name": "com.vella.events",
+  "displayName": "ECS Events",
+  "description": "An event system for Unity's data oriented design framework.",
+  "version": "0.1.9",
+  "unity": "2020.2",
+  "dependencies": {
+    "com.unity.burst": "1.3.3",
+    "com.unity.collections": "0.9.0-preview.6",
+    "com.unity.entities": "0.11.1-preview.4"
+  }
+}
