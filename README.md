@@ -1,6 +1,6 @@
 
 # UnityEcsEvents
-An event system package for Unity's data oriented design framework.
+An event system package for Unity's data-oriented design framework.
 
 #### What is it?
 
@@ -12,7 +12,7 @@ Events in ECS are a convenient way to communicate short-lived information betwee
 
 Download by clicking the "Clone or Download" button on the GitHub repo then copy the folders into your "/packages/" folder.
 
-There are two seperate packages included:
+There are two separate packages included:
 - Entities.Unlocked - Provides access to various internal features of Unity.Entities
 - UnityEcsEvents - The core events system.
 
