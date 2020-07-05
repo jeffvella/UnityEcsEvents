@@ -4,7 +4,7 @@ An event system package for Unity's data oriented design framework.
 
 #### What is it?
 
-Events in ECS are a convienient way to communicate short-lived information between systems. An event is just an Entity with a few components on it.
+Events in ECS are a convenient way to communicate short-lived information between systems. An event is just an Entity with a few components on it. This project makes it faster and easier to create them!
 
 [Check out the example project here](https://github.com/jeffvella/UnityEcsEvents.Example)
 
