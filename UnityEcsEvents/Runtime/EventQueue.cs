@@ -186,6 +186,12 @@ namespace Vella.Events
         {
             _metaData = new MultiAppendBuffer(allocator, sizeof(EntityEvent));
 
+            if (componentSize > 128)
+                throw new ArgumentException($"Component is too large: {componentSize} bytes");
+
+            if (bufferElementSize > 128)
+                throw new ArgumentException($"BufferElementData is too large: {bufferElementSize} bytes");
+
             if (componentSize > 0)
             {
                 _componentData = new MultiAppendBuffer(allocator);
@@ -304,8 +310,10 @@ namespace Vella.Events
 
         public void EnqueueDefault()
         {
-            var item = stackalloc byte[_componentSize];
-            _componentData.GetBuffer(_threadIndex).Add(item, _componentSize);
+            // temp, only for tests, stackalloc crashing burst here.
+            var tmp = UnsafeUtility.Malloc(_componentSize, 4, Allocator.Temp);
+            _componentData.GetBuffer(_threadIndex).Add(tmp, _componentSize);
+            UnsafeUtility.Free(tmp, Allocator.Temp);
         }
 
         public void EnqueueComponent(byte* ptr)

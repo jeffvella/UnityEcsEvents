@@ -191,10 +191,8 @@ namespace Vella.Events
 
         private void CreateInactiveEntities(EntityManager em, int entityCount)
         {
-            var capacity = InactiveArchetype.ChunkCapacity;
-            var chunkCount = entityCount / capacity + ((entityCount % capacity == 0) ? 0 : 1);
-            var newChunks = new NativeArray<ArchetypeChunk>(chunkCount, Allocator.Temp);
-            em.CreateChunk(InactiveArchetype, newChunks, entityCount);
+            var results = new NativeArray<Entity>(entityCount, Allocator.Temp);
+            em.CreateEntity(InactiveArchetype, results);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -246,30 +244,30 @@ namespace Vella.Events
             InactiveFullArchetypeChunks.Clear();
             InactivePartialArchetypeChunk.Clear();
 
-            for (int x = 0; x < ActiveChunks.Length; x++)
+            for (int i = 0; i < ActiveChunks.ChunkCount; i++)
             {
-                var archetypeChunkPtr = ActiveChunks.GetArchetypeChunkPtr(x);
-                if (archetypeChunkPtr->Full)
+                var archetypeChunk = ActiveChunks.GetArchetypeChunk(i);
+                if (archetypeChunk.Full)
                 {
-                    ActiveFullArchetypeChunks.Add(*archetypeChunkPtr);
+                    ActiveFullArchetypeChunks.Add(archetypeChunk);
                 }
                 else
                 {
-                    ActivePartialArchetypeChunk.Add(*archetypeChunkPtr);
+                    ActivePartialArchetypeChunk.Add(archetypeChunk);
                 }
-                ActiveArchetypeChunks.Add(*archetypeChunkPtr);
+                ActiveArchetypeChunks.Add(archetypeChunk);
             }
 
-            for (int x = 0; x < InactiveChunks.Length; x++)
+            for (int i = 0; i < InactiveChunks.ChunkCount; i++)
             {
-                var archetypeChunkPtr = InactiveChunks.GetArchetypeChunkPtr(x);
-                if (archetypeChunkPtr->Full)
+                var archetypeChunk = InactiveChunks.GetArchetypeChunk(i);
+                if (archetypeChunk.Full)
                 {
-                    InactiveFullArchetypeChunks.Add(*archetypeChunkPtr);
+                    InactiveFullArchetypeChunks.Add(archetypeChunk);
                 }
                 else
                 {
-                    InactivePartialArchetypeChunk.Add(*archetypeChunkPtr);
+                    InactivePartialArchetypeChunk.Add(archetypeChunk);
                 }
             }
         }

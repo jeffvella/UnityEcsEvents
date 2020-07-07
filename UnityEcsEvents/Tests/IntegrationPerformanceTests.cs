@@ -34,12 +34,7 @@ namespace Performance
             var aMin = 1;
             var aMax = archetypeCount;
 
-            var group = new SampleGroupDefinition
-            {
-                AggregationType = AggregationType.Average,
-                Name = GetName($"Random entity counts between [{eMin}-{eMax}], and [{aMin}-{aMax}] archetypes"),
-                SampleUnit = SampleUnit.Millisecond
-            };
+            var group = new SampleGroup($"Random entity counts between [{eMin}-{eMax}], and [{aMin}-{aMax}] archetypes", SampleUnit.Millisecond);
 
             var measurements = 25;
             var warmups = 5;
@@ -787,12 +782,7 @@ namespace Performance
         {
             protected override void OnCreate()
             {
-                Group = new SampleGroupDefinition
-                {
-                    AggregationType = AggregationType.Average,
-                    Name = "EntityCommandBuffer QueuedFromJob",
-                    SampleUnit = SampleUnit.Millisecond
-                };
+                Group = new SampleGroup("EntityCommandBuffer QueuedFromJob", SampleUnit.Millisecond);
 
                 StopWatch = new Stopwatch();
             }
@@ -805,7 +795,7 @@ namespace Performance
 
             public NativeList<Entity> CreatedEntities { get; set; }
 
-            public SampleGroupDefinition Group { get; private set; }
+            public SampleGroup Group { get; private set; }
 
             public EntityQuery Query { get; set; }
 
@@ -849,47 +839,19 @@ namespace Performance
             }
         }
 
-        [Test, Performance, TestCategory(TestCategory.Performance)]
+        /*[Test, Performance, TestCategory(TestCategory.Performance)]
         public void UpdatePhaseBreakdown([Values(1, 1000, 10000)] int eventsPerArchetype, [Values(1, 25, 50)] int archetypeCount)
         {
             var system = Manager.World.GetOrCreateSystem<LoadTestSystem>();
             system.EventsPerArchetype = eventsPerArchetype;
             system.ArchetypeCount = archetypeCount;
 
-            var processQueuedEventsGroup = new SampleGroupDefinition
-            {
-                AggregationType = AggregationType.Average,
-                Name = GetName("ProcessQueuedEvents", eventsPerArchetype, archetypeCount),
-                SampleUnit = SampleUnit.Millisecond
-            };
 
-            var structuralChangesEventsGroup = new SampleGroupDefinition
-            {
-                AggregationType = AggregationType.Average,
-                Name = GetName("StructuralChanges", eventsPerArchetype, archetypeCount),
-                SampleUnit = SampleUnit.Millisecond
-            };
-
-            var updateChunkCollectionsGroup = new SampleGroupDefinition
-            {
-                AggregationType = AggregationType.Average,
-                Name = GetName("UpdateChunkCollections", eventsPerArchetype, archetypeCount),
-                SampleUnit = SampleUnit.Millisecond
-            };
-
-            var setComponentsGroup = new SampleGroupDefinition
-            {
-                AggregationType = AggregationType.Average,
-                Name = GetName("SetComponents", eventsPerArchetype, archetypeCount),
-                SampleUnit = SampleUnit.Millisecond
-            };
-
-            var clearQueuesGroup = new SampleGroupDefinition
-            {
-                AggregationType = AggregationType.Average,
-                Name = GetName("ClearQueues", eventsPerArchetype, archetypeCount),
-                SampleUnit = SampleUnit.Millisecond
-            };
+            var processQueuedEventsGroup = new SampleGroup(GetName("ProcessQueuedEvents", eventsPerArchetype, archetypeCount), SampleUnit.Millisecond);
+            var structuralChangesEventsGroup = new SampleGroup(GetName("StructuralChanges", eventsPerArchetype, archetypeCount), SampleUnit.Millisecond);
+            var updateChunkCollectionsGroup = new SampleGroup(GetName("UpdateChunkCollections", eventsPerArchetype, archetypeCount), SampleUnit.Millisecond);
+            var setComponentsGroup = new SampleGroup(GetName("SetComponents", eventsPerArchetype, archetypeCount), SampleUnit.Millisecond);
+            var clearQueuesGroup = new SampleGroup(GetName("ClearQueues", eventsPerArchetype, archetypeCount), SampleUnit.Millisecond);
 
             var measurements = 25;
             var warmups = 5;
@@ -930,7 +892,7 @@ namespace Performance
                     Measure.Custom(clearQueuesGroup, sw.Elapsed.TotalMilliseconds);
                 }
             }
-        }
+        }*/
 
         [Test, Performance, TestCategory(TestCategory.Performance)]
         public void CreateEvents([Values(1, 10, 100, 1000, 10000)] int eventsPerArchetype, [Values(1, 10, 50, 100)] int archetypeCount)
@@ -939,12 +901,7 @@ namespace Performance
             system.EventsPerArchetype = eventsPerArchetype;
             system.ArchetypeCount = archetypeCount;
 
-            var group = new SampleGroupDefinition
-            {
-                AggregationType = AggregationType.Average,
-                Name = GetName("Creating events that were queued on main thread", eventsPerArchetype, archetypeCount),
-                SampleUnit = SampleUnit.Millisecond
-            };
+            var group = new SampleGroup(GetName("Creating events that were queued on main thread", eventsPerArchetype, archetypeCount), SampleUnit.Millisecond);
 
             var measurements = 25;
             var warmups = 5;
@@ -973,12 +930,7 @@ namespace Performance
             // because of the way data is stored and read. It will effect set component time, 
             // counting how many entities are queued, etc.
 
-            var group2 = new SampleGroupDefinition 
-            {
-                AggregationType = AggregationType.Average,
-                Name = GetName("Creating events that were queued in parallel", eventsPerArchetype, archetypeCount),
-                SampleUnit = SampleUnit.Millisecond
-            };
+            var group2 = new SampleGroup(GetName("Creating events that were queued in parallel", eventsPerArchetype, archetypeCount), SampleUnit.Millisecond);
 
             for (int i = 0; i < measurements; i++)
             {
@@ -999,19 +951,14 @@ namespace Performance
         }
 
         [Test, Performance, TestCategory(TestCategory.Performance)]
-        public void CreateBufferEvents([Values(1, 10, 100, 1000)] int eventCount, [Values(1, 10, 100, 1000, 10000)] int bufferLength)
+        public void CreateBufferEvents([Values(1, 10, 100, 1000)] int eventCount, [Values(1, 10, 100, 1000)] int bufferLength)
         {
             var system = Manager.World.GetOrCreateSystem<BufferEventFromJobsWithCodeSystem>();
 
             system.EventCount = eventCount;
             system.BufferElementCount = bufferLength;
 
-            var group = new SampleGroupDefinition
-            {
-                AggregationType = AggregationType.Average,
-                Name = GetName($"Creating {eventCount} events with {bufferLength} length buffers, queued from main thread "),
-                SampleUnit = SampleUnit.Millisecond
-            };
+            var group = new SampleGroup(GetName($"Creating {eventCount} events with {bufferLength} length buffers, queued from main thread "), SampleUnit.Millisecond);
 
             var measurements = 25;
             var warmups = 5;
@@ -1055,9 +1002,13 @@ namespace Performance
                 var componentCount = EventCount;
                 var bufferElementCount = BufferElementCount;
 
+                if (bufferElementCount <= 0)
+                    throw new ArgumentException();
+
+                var bufferPtr = new NativeArray<EcsIntElement>(bufferElementCount, Allocator.Temp).GetUnsafePtr();
+
                 Job.WithCode(() =>
                 {
-                    var bufferPtr = stackalloc EcsIntElement[bufferElementCount];
                     for (int i = 0; i < componentCount; i++)
                     {
                         queue.Enqueue(EventComponentData, bufferPtr, bufferElementCount);
@@ -1134,7 +1085,7 @@ namespace Performance
 
                     var chunkHeaderTypeIndex = TypeManager.GetTypeIndex<ChunkHeader>();
 
-                    var types = TypeManager.GetAllTypes().Where(t => t.SizeInChunk > 1 && t.Category == TypeManager.TypeCategory.ComponentData
+                    var types = TypeManager.GetAllTypes().Where(t => t.SizeInChunk > 1 && t.SizeInChunk < 128 && t.Category == TypeManager.TypeCategory.ComponentData
                         && !t.Type.FullName.Contains(nameof(Vella.Events)) && t.TypeIndex != chunkHeaderTypeIndex);
 
                     _componentTypeInfos = new NativeArray<TypeManager.TypeInfo>(types.ToArray(), Allocator.Persistent);

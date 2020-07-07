@@ -21,14 +21,14 @@ namespace Vella.Tests.Fixtures
         [TearDown]
         virtual public void TearDown()
         {
-            if (m_Manager != null)
+            if (m_Manager != default)
             {
                 m_World.Dispose();
                 m_World = null;
 
                 World.DefaultGameObjectInjectionWorld = m_PreviousWorld;
                 m_PreviousWorld = null;
-                m_Manager = null;
+                m_Manager = default;
             }
         }
     }

@@ -23,7 +23,7 @@ class UnsafeEntityManagerTests : ECSTestsFixture
         var entitiesPerMeasurement = 20;
         var expectedTotal = (measureTimes + warmupTimes) * entitiesPerMeasurement;
 
-        var uem = new UnsafeEntityManager(Manager);
+        var uem = Manager.Unsafe; //new UnsafeEntityManager(Manager);
         var component = ComponentType.ReadWrite<EcsTestData>();
         var archetype = Manager.CreateArchetype(component);
         var query = Manager.CreateEntityQuery(component);

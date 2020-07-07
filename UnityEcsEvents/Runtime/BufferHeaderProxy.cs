@@ -29,7 +29,7 @@ namespace Vella.Events
         [FieldOffset(12)]
         public int Capacity;
 
-        public unsafe static byte* GetElementPointer(BufferHeaderProxy* header)
+        public static unsafe byte* GetElementPointer(BufferHeaderProxy* header)
         {
             if (header->Pointer != null)
             {
@@ -38,7 +38,7 @@ namespace Vella.Events
             return (byte*)(header + 1);
         }
 
-        public unsafe static void EnsureCapacity(BufferHeaderProxy* header, int count, int typeSize, int alignment, TrashMode trashMode, bool useMemoryInitPattern, byte memoryInitPattern)
+        public static unsafe void EnsureCapacity(BufferHeaderProxy* header, int count, int typeSize, int alignment, TrashMode trashMode, bool useMemoryInitPattern, byte memoryInitPattern)
         {
             if (count > header->Capacity)
             {
@@ -47,7 +47,7 @@ namespace Vella.Events
             }
         }
 
-        public unsafe static void SetCapacity(BufferHeaderProxy* header, int count, int typeSize, int alignment, TrashMode trashMode, bool useMemoryInitPattern, byte memoryInitPattern, int internalCapacity)
+        public static unsafe void SetCapacity(BufferHeaderProxy* header, int count, int typeSize, int alignment, TrashMode trashMode, bool useMemoryInitPattern, byte memoryInitPattern, int internalCapacity)
         {
             if (count == header->Capacity)
             {
@@ -88,7 +88,7 @@ namespace Vella.Events
             header->Capacity = count;
         }
 
-        public unsafe static void Assign(BufferHeaderProxy* header, byte* source, int count, int typeSize, int alignment, bool useMemoryInitPattern, byte memoryInitPattern)
+        public static unsafe void Assign(BufferHeaderProxy* header, byte* source, int count, int typeSize, int alignment, bool useMemoryInitPattern, byte memoryInitPattern)
         {
             EnsureCapacity(header, count, typeSize, alignment, TrashMode.TrashOldData, useMemoryInitPattern, memoryInitPattern);
             byte* elementPtr = GetElementPointer(header);

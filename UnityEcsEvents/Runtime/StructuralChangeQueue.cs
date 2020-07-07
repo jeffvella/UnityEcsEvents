@@ -29,8 +29,6 @@ namespace Vella.Events
 
         internal void Apply()
         {
-            //EntityManager.CompleteAllJobs(); // Such safety, much wow.
-
             for (int i = 0; i < AddComponentToChunks.Length; i++)
             {
                 var op = ((AddComponentChunkOp*)AddComponentToChunks.Ptr)[i];
@@ -40,7 +38,7 @@ namespace Vella.Events
                     ((ArchetypeChunk*)op.Chunks)[j].Invalid();
 #endif
 
-                _uem.AddComponentToChunks(op.Chunks, op.Count, op.TypeIndex);
+                _uem.AddComponentChunks((ArchetypeChunk*)op.Chunks, op.Count, op.TypeIndex);
             }
 
             for (int i = 0; i < RemoveComponentFromChunks.Length; i++)
@@ -52,7 +50,7 @@ namespace Vella.Events
                 for (int j = 0; j < op.Count; j++)
                     ((ArchetypeChunk*)op.Chunks)[j].Invalid();
 #endif
-                _uem.RemoveComponentFromChunks(op.Chunks, op.Count, op.TypeIndex);
+                _uem.RemoveComponentChunks((ArchetypeChunk*)op.Chunks, op.Count, op.TypeIndex);
             }
 
             for (int i = 0; i < CreateChunks.Length; i++)

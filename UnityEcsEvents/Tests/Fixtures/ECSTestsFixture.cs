@@ -104,7 +104,7 @@ namespace Vella.Tests.Fixtures
         [TearDown]
         public virtual void TearDown()
         {
-            if (Manager != null && Manager.IsCreated)
+            if (Manager != default && Manager.IsCreated)
             {
                 // Clean up systems before calling CheckInternalConsistency because we might have filters etc
                 // holding on SharedComponentData making checks fail
@@ -120,10 +120,10 @@ namespace Vella.Tests.Fixtures
 
                 World.DefaultGameObjectInjectionWorld = m_PreviousWorld;
                 m_PreviousWorld = null;
-                Manager = null;
+                Manager = default;
 
                 EventSystem = null;
-                EcsTestDataQuery = null;
+                EcsTestDataQuery = default;
             }
         }
 
@@ -326,7 +326,7 @@ namespace Vella.Tests.Fixtures
         {
             var type = Manager.GetArchetypeChunkComponentType<T>(true);
             var chunk = Manager.GetChunk(e);
-            Assert.AreEqual(version, chunk.GetComponentVersion(type));
+            Assert.AreEqual(version, chunk.GetChangeVersion(type));
             Assert.IsFalse(chunk.DidChange(type, version));
             Assert.IsTrue(chunk.DidChange(type, version-1));
         }
@@ -335,7 +335,7 @@ namespace Vella.Tests.Fixtures
         {
             var type = Manager.GetArchetypeChunkBufferType<T>(true);
             var chunk = Manager.GetChunk(e);
-            Assert.AreEqual(version, chunk.GetComponentVersion(type));
+            Assert.AreEqual(version, chunk.GetChangeVersion(type));
             Assert.IsFalse(chunk.DidChange(type, version));
             Assert.IsTrue(chunk.DidChange(type, version-1));
         }
@@ -344,11 +344,12 @@ namespace Vella.Tests.Fixtures
         {
             var type = Manager.GetArchetypeChunkSharedComponentType<T>();
             var chunk = Manager.GetChunk(e);
-            Assert.AreEqual(version, chunk.GetComponentVersion(type));
+            Assert.AreEqual(version, chunk.GetChangeVersion(type));
             Assert.IsFalse(chunk.DidChange(type, version));
             Assert.IsTrue(chunk.DidChange(type, version-1));
         }
 
+        [DisableAutoCreation]
         class EntityForEachSystem : ComponentSystem
         {
             protected override void OnUpdate() {  }
@@ -371,7 +372,7 @@ namespace Vella.Tests.Fixtures
                 m_All = default;
                 m_AnyWritableBitField = (m_AllWritableBitField = 0u);
                 m_Options = EntityQueryOptions.Default;
-                m_Query = null;
+                m_Query = default;
             }
 
             public EntityQueryBuilder Build()

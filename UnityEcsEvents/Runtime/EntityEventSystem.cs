@@ -8,11 +8,12 @@ using UnityEngine;
 using Debug = UnityEngine.Debug;
 using Vella.Events.Extensions;
 using System.Linq;
+using System.Runtime.CompilerServices;
 
 namespace Vella.Events
 {
 
-    [DisableAutoCreation]
+    [UpdateInGroup(typeof(PresentationSystemGroup))]
     [DebuggerTypeProxy(typeof(EntityEventSystemDebugView))]
     public unsafe class EntityEventSystem : SystemBase
     {
@@ -38,7 +39,7 @@ namespace Vella.Events
             EventSystemData data = default;
             data.TypeIndexToBatchMap = new UnsafeHashMap<int, int>(1, Allocator.Persistent);
             data.Batches = new UnsafeList<EventBatch>(1, Allocator.Persistent);
-            data.UnsafeEntityManager = new UnsafeEntityManager(EntityManager);
+            data.UnsafeEntityManager = EntityManager.Unsafe;
             data.StructuralChanges = new StructuralChangeQueue(data.UnsafeEntityManager, Allocator.Persistent);
             data.EventComponent = ComponentType.ReadOnly<EntityEvent>();
             data.DisabledTypeIndex = TypeManager.GetTypeIndex<Disabled>();
@@ -50,22 +51,8 @@ namespace Vella.Events
 
         protected override void OnUpdate()
         {
-            if (Data.BatchCount == 0)
-                return;
-
-            ProcessQueuedEvents();
-
-            if (Data.EntityCount > 0 || Data.HasChanged)
-            {
-                Data.StructuralChanges.Apply();
-                UpdateChunkCollections();
-                SetComponents();
-                ClearQueues();
-            }
-        }
-
-        internal void ProcessQueuedEvents()
-        {
+            //EntityManager.CompleteAllJobs();
+            
             var batchCount = Data.Batches.Length;
             var batchesPtr = (byte*)Data.Batches.Ptr;
             var dataPtr = (byte*)_dataPtr;
@@ -78,7 +65,9 @@ namespace Vella.Events
                 data.EntityCount = 0;
                 data.HasChanged = false;
 
-                for (int i = 0; i < data.Batches.Length; i++)
+                // Process Queues
+                
+                for (var i = 0; i < data.Batches.Length; i++)
                 {
                     ref var batch = ref UnsafeUtilityEx.ArrayElementAsRef<EventBatch>(batchesPtr, i);
 
@@ -87,11 +76,7 @@ namespace Vella.Events
                     batch.HasChanged = batch.EntityCount != requiredEntities;
 
                     if (!batch.HasChanged)
-                    {
-                        // Don't create or delete anything; 
-                        // Just set component data on existing entities.
                         continue;
-                    }
 
                     data.HasChanged = true;
                     batch.EntityCount = requiredEntities;
@@ -99,7 +84,7 @@ namespace Vella.Events
                     if (requiredEntities == 0)
                     {
                         // Deactivate all 
-                        if (batch.ActiveChunks.Length != 0)
+                        if (batch.ActiveChunks.ChunkCount != 0)
                         {
                             data.StructuralChanges.AddComponentToChunks.Add(new AddComponentChunkOp
                             {
@@ -169,7 +154,7 @@ namespace Vella.Events
 
                         remainingEntities -= (requiredFullChunks - remainingFullChunks) * capacity;
                     }
-                    else
+                    else if (batch.ActiveArchetypeChunks.Length != 0)
                     {
                         // Deactivate all active chunks
                         data.StructuralChanges.AddComponentToChunks.Add(new AddComponentChunkOp
@@ -180,19 +165,19 @@ namespace Vella.Events
                         });
                     }
 
-                    if (remainingEntities > 0 && batch.InactiveChunks.Length != 0)
+                    if (remainingEntities > 0 && batch.InactiveChunks.ChunkCount != 0)
                     {
                         // Create from inactive partials
-                        if (batch.InactivePartialArchetypeChunk.Length != 0) // todo create full chunk sized pieces out before this
+                        if (batch.InactivePartialArchetypeChunk.Length != 0) 
                         {
                             var batchInChunks = new NativeList<EntityBatchInChunkProxy>(Allocator.Temp);
-                            for (int j = 0; j < batch.InactivePartialArchetypeChunk.Length; j++)
+                            for (var j = 0; j < batch.InactivePartialArchetypeChunk.Length; j++)
                             {
-                                var archetypeChunkPtr = ((ArchetypeChunk*)batch.InactivePartialArchetypeChunk.Ptr)[j];
-                                var amountToMove = math.min(archetypeChunkPtr.Count, remainingEntities);
+                                var archetypeChunk = ((ArchetypeChunk*)batch.InactivePartialArchetypeChunk.Ptr)[j];
+                                var amountToMove = math.min(archetypeChunk.Count, remainingEntities);
                                 var entityBatch = new EntityBatchInChunkProxy
                                 {
-                                    ChunkPtr = archetypeChunkPtr.GetChunkPtr(),
+                                    ChunkPtr = archetypeChunk.GetChunkPtr(),
                                     Count = amountToMove,
                                     StartIndex = 0,
                                 };
@@ -213,7 +198,7 @@ namespace Vella.Events
                         if (remainingEntities > 0 && remainingInactiveFulls != 0)
                         {
                             var batchInChunks = new NativeList<EntityBatchInChunkProxy>(Allocator.Temp);
-                            for (int j = remainingInactiveFulls - 1; j == -1; j--)
+                            for (var j = remainingInactiveFulls - 1; j == -1; j--)
                             {
                                 var archetypeChunk = ((ArchetypeChunk*)batch.InactiveFullArchetypeChunks.Ptr)[j];
                                 var amountToMove = math.min(archetypeChunk.Count, remainingEntities);
@@ -237,7 +222,7 @@ namespace Vella.Events
                         }
                     }
 
-                    if (remainingEntities != 0) // todo: currently not copying from active partials to avoid create.
+                    if (remainingEntities != 0)
                     {
                         data.StructuralChanges.CreateChunks.Add(new CreateChunksOp
                         {
@@ -247,72 +232,69 @@ namespace Vella.Events
                     }
                 }
 
-            }).Run();
-        }
-
-        internal void SetComponents()
-        {
-            var batchCount = Data.Batches.Length;
-            var batchesPtr = (byte*)Data.Batches.Ptr;
-
-            Job.WithCode(() =>
-            {
-                for (int i = 0; i < batchCount; i++)
+                if (data.EntityCount == 0 && !data.HasChanged)
+                    return;
+                
+                data.StructuralChanges.Apply();
+                
+                // Update Chunk Collections
+                
+                for (var i = 0; i < batchCount; i++)
                 {
-                    EventBatch* batch = (EventBatch*)(batchesPtr + sizeof(EventBatch) * i);
+                    var batch = (EventBatch*)(batchesPtr + sizeof(EventBatch) * i);
+                    batch->UpdateChunkCollections();
+                }
+                
+                // Set Components
+                
+                for (var i = 0; i < batchCount; i++)
+                {
+                    var batch = (EventBatch*)(batchesPtr + sizeof(EventBatch) * i);
 
                     if (batch->EntityCount == 0)
                         continue;
 
-                    MultiAppendBuffer.Reader metaComponents = batch->ComponentQueue.GetMetaReader();
+                    var metaComponents = batch->ComponentQueue.GetMetaReader();
 
-                    for (int j = 0; j < batch->Archetype.ChunkCount; j++)
+                    for (var j = 0; j < batch->Archetype.ChunkCount; j++)
                     {
-                        ArchetypeChunk* archetypeChunkPtr = batch->ActiveChunks.GetArchetypeChunkPtr(j);
-                        byte* chunkPtr = (byte*)archetypeChunkPtr->GetChunkPtr();
-                        var size = archetypeChunkPtr->Count * sizeof(EntityEvent);
+                        var archetypeChunk = batch->ActiveChunks.GetArchetypeChunk(j);
+                        var chunkPtr = (byte*)archetypeChunk.GetChunkPtr();
+                        var size = archetypeChunk.Count * sizeof(EntityEvent);
                         metaComponents.CopyTo(chunkPtr + batch->Offsets.MetaOffset, size);
                     }
 
                     if (batch->HasComponent)
                     {
-                        MultiAppendBuffer.Reader queuedComponents = batch->ComponentQueue.GetComponentReader();
+                        var queuedComponents = batch->ComponentQueue.GetComponentReader();
 
-                        for (int j = 0; j < batch->Archetype.ChunkCount; j++)
+                        for (var j = 0; j < batch->Archetype.ChunkCount; j++)
                         {
-                            ArchetypeChunk* archetypeChunkPtr = batch->ActiveChunks.GetArchetypeChunkPtr(j);
-                            byte* chunkPtr = (byte*)archetypeChunkPtr->GetChunkPtr();
-                            var size = archetypeChunkPtr->Count * batch->ComponentTypeSize;
+                            var archetypeChunk = batch->ActiveChunks.GetArchetypeChunk(j);
+                            var chunkPtr = (byte*)archetypeChunk.GetChunkPtr();
+                            var size = archetypeChunk.Count * batch->ComponentTypeSize;
                             queuedComponents.CopyTo(chunkPtr + batch->Offsets.ComponentOffset, size);
                         }
                     }
 
                     if (batch->HasBuffer)
                     {
-                        MultiAppendBuffer.Reader links = batch->ComponentQueue.GetLinksReader();
+                        var links = batch->ComponentQueue.GetLinksReader();
 
-                        for (int j = 0; j < batch->Archetype.ChunkCount; j++)
+                        for (var j = 0; j < batch->Archetype.ChunkCount; j++)
                         {
-                            ArchetypeChunk chunk = ((ArchetypeChunk*)batch->ActiveArchetypeChunks.Ptr)[j];
+                            var chunk = ((ArchetypeChunk*)batch->ActiveArchetypeChunks.Ptr)[j];
                             var entityCount = chunk.Count;
 
-                            byte* chunkBufferHeaders = batch->GetBufferPointer(chunk);
-                            byte* chunkLinks = batch->GetBufferLinkPointer(chunk);
-
-                            // Can't assume that buffer data is stored int he same order as the primary event component
-                            // due to parallel writing. Can't store the buffer and component sequentially because it 
-                            // would prevent a contiguous copy of all component data in to the chunk. Can't store buffer pointers
-                            // in 'BufferHeader's at enqueue time and then copy them all at once into chunk because of
-                            // dynamic allocation size (the pointer may change); it can't be a pointer to a pointer because
-                            // the operation of BufferHeader/DynamicBuffer is not somethign we control; if you have to patch
-                            // the BufferHeader pointer then you're iterating every entity anyway.
-
+                            var chunkBufferHeaders = batch->GetBufferPointer(chunk);
+                            var chunkLinks = batch->GetBufferLinkPointer(chunk);
+                            
                             links.CopyTo(chunkLinks, entityCount * UnsafeUtility.SizeOf<BufferLink>());
 
-                            for (int x = 0; x < entityCount; x++)
+                            for (var x = 0; x < entityCount; x++)
                             {
-                                BufferHeaderProxy* bufferHeader = (BufferHeaderProxy*)(chunkBufferHeaders + x * batch->BufferSizeInChunk);
-                                BufferLink* link = (BufferLink*)(chunkLinks + x * UnsafeUtility.SizeOf<BufferLink>());
+                                var bufferHeader = (BufferHeaderProxy*)(chunkBufferHeaders + x * batch->BufferSizeInChunk);
+                                var link = (BufferLink*)(chunkLinks + x * UnsafeUtility.SizeOf<BufferLink>());
 
                                 ref var source = ref batch->ComponentQueue._bufferData.GetBuffer(link->ThreadIndex);
                                 BufferHeaderProxy.Assign(bufferHeader, source.Ptr + link->Offset, link->Length, batch->BufferElementSize, batch->BufferAlignmentInBytes, default, default);
@@ -320,42 +302,18 @@ namespace Vella.Events
                         }
                     }
                 }
-
-            }).Run();
-        }
-
-        internal void UpdateChunkCollections() // This is just seperated out for benchmarking
-        {
-            var batchCount = Data.Batches.Length;
-            var batchesPtr = (byte*)Data.Batches.Ptr;
-
-            Job.WithCode(() =>
-            {
-                for (int i = 0; i < batchCount; i++)
+                
+                // Clear Queues
+                
+                for (var i = 0; i < batchCount; i++)
                 {
-                    EventBatch* batch = (EventBatch*)(batchesPtr + sizeof(EventBatch) * i);
-                    batch->UpdateChunkCollections();
-                }
-
-            }).Run();
-        }
-
-        internal void ClearQueues() // This is just seperated out for benchmarking
-        {
-            var batchCount = Data.Batches.Length;
-            var batchesPtr = (byte*)Data.Batches.Ptr;
-
-            Job.WithCode(() =>
-            {
-                for (int i = 0; i < batchCount; i++)
-                {
-                    EventBatch* batch = (EventBatch*)(batchesPtr + sizeof(EventBatch) * i);
+                    var batch = (EventBatch*)(batchesPtr + sizeof(EventBatch) * i);
                     batch->ComponentQueue.Clear();
                 }
 
             }).Run();
         }
-
+        
         /// <summary>
         /// Add an event to the default EventQueue.
         /// </summary>
@@ -437,10 +395,10 @@ namespace Vella.Events
             return GetOrCreateBatch(TypeManager.GetTypeInfo(bufferType.TypeIndex), TypeManager.GetTypeInfo(bufferType.TypeIndex)).Batch.ComponentQueue;
         }
 
-        internal (EventBatch Batch, bool WasCreated) GetOrCreateBatch(TypeManager.TypeInfo typeInfo, TypeManager.TypeInfo bufferTypeInfo = default, int startingPoolSize = 0)
+        private (EventBatch Batch, bool WasCreated) GetOrCreateBatch(TypeManager.TypeInfo typeInfo, TypeManager.TypeInfo bufferTypeInfo = default, int startingPoolSize = 0)
         {
-            int key = GetKey(typeInfo.TypeIndex, bufferTypeInfo.TypeIndex);
-            if (!Data.TypeIndexToBatchMap.TryGetValue(key, out int index))
+            var key = GetKey(typeInfo.TypeIndex, bufferTypeInfo.TypeIndex);
+            if (!Data.TypeIndexToBatchMap.TryGetValue(key, out var index))
             {
                 var batch = new EventBatch(EntityManager, new EventBatch.EventDefinition
                 {
@@ -461,7 +419,7 @@ namespace Vella.Events
 
         private int GetKey(int typeIndex1, int typeIndex2)
         {
-            int hash = 23;
+            var hash = 23;
             hash = hash * 31 + typeIndex1;
             hash = hash * 31 + typeIndex2;
             return hash;
@@ -469,7 +427,7 @@ namespace Vella.Events
 
         protected override void OnDestroy()
         {
-            for (int i = 0; i < Data.Batches.Length; i++)
+            for (var i = 0; i < Data.Batches.Length; i++)
                 Data.Batches.Ptr[i].Dispose();
 
             Data.Batches.Dispose();
@@ -495,19 +453,19 @@ namespace Vella.Events
             {
                 var length = _actual.Data.Batches.Length;
                 var result = new EventBatch[length];
-                for (int i = 0; i < length; i++)
+                for (var i = 0; i < length; i++)
                     result[i] = _actual.Data.Batches.Ptr[i];
                 return result;
             }
         }
 
-        internal unsafe EventQueue[] ComponentQueues
+        public unsafe EventQueue[] ComponentQueues
         {
             get
             {
                 var length = _actual.Data.Batches.Length;
                 var result = new EventQueue[length];
-                for (int i = 0; i < length; i++)
+                for (var i = 0; i < length; i++)
                     result[i] = _actual.Data.Batches.Ptr[i].ComponentQueue;
                 return result;
             }

@@ -1,36 +1,93 @@
 
 # UnityEcsEvents
-An event system package for Unity's data oriented design framework.
+An event system package for Unity's data-oriented design framework.
 
 #### What is it?
 
-The concept of Entity Events in Entity Component Systems (ECS) is fairly common. Used mostly for short-lived/one frame messaging, its a convenient way of triggering functionality. In Unity this can be accomplished easily by creating an entity and assigning components to it. 
-
-#### Then why do i need a fancy package?
-
-This has many optimizations that allow for creating events faster than you could otherwise. It also has many additional features such as parallel support, attaching DynamicBuffers to events!
+Events in ECS are a convenient way to communicate short-lived information between systems. An event is just an Entity with a few components on it and this project makes it faster and easier to create them!
 
 [Check out the example project here](https://github.com/jeffvella/UnityEcsEvents.Example)
 
 ### Installation:
 
-- **Option 1: Download**  
-Download the package by clicking the "Clone or Download" button on the GitHub repo then select "Download Zip". Extract it to your project's \Packages\ folder.
+Download by clicking the "Clone or Download" button on the GitHub repo then copy the folders into your "/packages/" folder.
 
-- **Option 2: PackageManager**  
-Click the on the GitHub repo, and copy the URL shown. In PackageManager hit the [+] icon,  select [Add Package from Git URL] and then paste in the URL, [Add]. You will need [Clone or Download] button [Git](https://git-scm.com/ "Git") installed on your machine for this to work. for more info see the  [PackageManager docs](https://docs.unity3d.com/Manual/upm-ui-giturl.html "PackageManager docs"). After clicking [Add] it can take 30 seconds or so before it looks like its doing anything.
+There are two separate packages included:
+- Entities.Unlocked - Provides access to various internal features of Unity.Entities
+- UnityEcsEvents - The core events system.
+
+### Getting Started:
+
+Here's an example of routing ECS events through to a MonoBehavior:
+
+    using Unity.Collections;
+    using Unity.Entities;
+    using UnityEngine;
+    using Vella.Events;
+
+    public class HelloWorld : MonoBehaviour, IEventObserver<MyHelloEvent>
+    {
+        public EventRouter EventSource;
+
+        private void Start() => EventSource.Subscribe<MyHelloEvent>(this);
+
+        public void OnEvent(MyHelloEvent e)
+        {
+            Debug.Log($"Event Triggered in GameObject. Message={e.Message}, Value={e.SomeValue}");
+        }
+    }
+
+    public class TestSystem : SystemBase
+    {
+        private EntityEventSystem _eventSystem;
+
+        protected override void OnCreate()
+        {
+            _eventSystem = World.GetOrCreateSystem<EntityEventSystem>();
+
+            _eventSystem.Enqueue(new MyHelloEvent
+            {
+                Message = "Hello World",
+                SomeValue = 41
+            });
+        }
+
+        protected override void OnUpdate()
+        {
+            Entities.ForEach((in MyHelloEvent e) =>
+            {
+                Debug.Log($"Event Triggered in System. Message={e.Message}, Value={e.SomeValue}");
+
+            }).Run();
+        }
+    }
+
+    public struct MyHelloEvent : IComponentData
+    {
+        public NativeString64 Message;
+        public int SomeValue;
+    }
+
+
+In general you can also:
+ * Create events anywhere with the same syntax - ForEach, Jobs, Managed, in parallel.
+ * Attach DynamicBuffers and Arrays to events.
+ * Cache and re-use an event queue per system.
+
+[For more advanced examples have a look at the test project](https://github.com/jeffvella/UnityEcsEvents.Example)
 
 ### Package Dependencies:
 
-    "com.unity.entities": "0.8.0-preview.8",
-    "com.unity.burst": "1.3.0-preview.7",
-    "com.unity.collections": "0.7.0-preview.2",
-    "com.unity.test-framework": "1.1.11",
+    "com.unity.burst": "1.3.3",
+    "com.unity.collections": "0.9.0-preview.6",
+    "com.unity.entities": "0.11.1-preview.4",
+	"com.unity.test-framework": "1.1.11",
     "com.unity.test-framework.performance": "1.3.3-preview",
-    
+	"com.vella.entities.unlocked": "0.0.3"
+
 ### Supported Editors:
 
-  * 2019.3.6xx+
+  * 2020.1.0b14+
  
 ### Acknowledgements
 
