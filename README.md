@@ -4,7 +4,7 @@ An event system package for Unity's data-oriented design framework.
 
 #### What is it?
 
-Events in ECS are a convenient way to communicate short-lived information between systems. An event is just an Entity with a few components on it. This project makes it faster and easier to create them!
+Events in ECS are a convenient way to communicate short-lived information between systems. An event is just an Entity with a few components on it and this project makes it faster and easier to create them!
 
 [Check out the example project here](https://github.com/jeffvella/UnityEcsEvents.Example)
 
@@ -15,6 +15,66 @@ Download by clicking the "Clone or Download" button on the GitHub repo then copy
 There are two separate packages included:
 - Entities.Unlocked - Provides access to various internal features of Unity.Entities
 - UnityEcsEvents - The core events system.
+
+### Getting Started:
+
+Here's an example of routing ECS events through to a MonoBehavior:
+
+    using Unity.Collections;
+    using Unity.Entities;
+    using UnityEngine;
+    using Vella.Events;
+
+    public class HelloWorld : MonoBehaviour, IEventObserver<MyHelloEvent>
+    {
+        public EventRouter EventSource;
+
+        private void Start() => EventSource.Subscribe<MyHelloEvent>(this);
+
+        public void OnEvent(MyHelloEvent e)
+        {
+            Debug.Log($"Event Triggered in GameObject. Message={e.Message}, Value={e.SomeValue}");
+        }
+    }
+
+    public class TestSystem : SystemBase
+    {
+        private EntityEventSystem _eventSystem;
+
+        protected override void OnCreate()
+        {
+            _eventSystem = World.GetOrCreateSystem<EntityEventSystem>();
+
+            _eventSystem.Enqueue(new MyHelloEvent
+            {
+                Message = "Hello World",
+                SomeValue = 41
+            });
+        }
+
+        protected override void OnUpdate()
+        {
+            Entities.ForEach((in MyHelloEvent e) =>
+            {
+                Debug.Log($"Event Triggered in System. Message={e.Message}, Value={e.SomeValue}");
+
+            }).Run();
+        }
+    }
+
+    public struct MyHelloEvent : IComponentData
+    {
+        public NativeString64 Message;
+        public int SomeValue;
+    }
+
+
+In general you can also:
+ * Create events anywhere with the same syntax - ForEach, Jobs, Managed, in parallel.
+ * Attach DynamicBuffers and Arrays to events.
+ * Cache and re-use an event queue per system.
+
+[For more advanced examples have a look at the test project](https://github.com/jeffvella/UnityEcsEvents.Example)
 
 ### Package Dependencies:
 
