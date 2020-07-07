@@ -89,6 +89,10 @@ In general you can also:
 
   * 2020.1.0b14+
  
+### Troubleshooting
+
+ * Unity still has some issues with ASMREF in certain situations, if Unity.Entities doesnt have the Unlocked package compiled with it properly then the usual fix is to go into preferences >> External tools and click 'regenerate project files'.
+ 
 ### Acknowledgements
 
 Consider checking out the project that inspired this work here:  **[com.bovinelabs.entities](https://github.com/tertle/com.bovinelabs.entities)** and the Unity forums thread on event systems: [here](https://forum.unity.com/threads/event-system.779711/#post-5677585).
