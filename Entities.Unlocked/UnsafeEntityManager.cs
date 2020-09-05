@@ -316,12 +316,12 @@ public static unsafe class UnsafeEntityManagerExtensions
 
     public static void* GetArchetypePtr(this EntityArchetype entityArchetype) => entityArchetype.Archetype;
 
-    public static void* GetChunkPtr(this EntityArchetype entityArchetype, int index) => entityArchetype.Archetype->Chunks.p[index];
+    public static void* GetChunkPtr(this EntityArchetype entityArchetype, int index) => entityArchetype.Archetype->Chunks[index];
     
     public static ArchetypeChunk GetArchetypeChunk(this EntityArchetype entityArchetype, int index)
     {
         ArchetypeChunk result = default;
-        result.m_Chunk = entityArchetype.Archetype->Chunks.p[index];
+        result.m_Chunk = entityArchetype.Archetype->Chunks[index];
 #if ENABLE_UNITY_COLLECTIONS_CHECKS        
         result.m_EntityComponentStore = entityArchetype._DebugComponentStore;
 #endif        
